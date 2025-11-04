@@ -8,3 +8,8 @@ result/
 *.gz
 *.xlsx
 *.dta
+
+# RStudio session files
+.Rhistory
+.RData
+.Rproj.user/
