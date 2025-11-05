@@ -1,18 +1,31 @@
-data_raw/
-data_clean/
-result/
-*.csv
-*.rds
-*.fst
-*.zip
-*.gz
-*.xlsx
-*.dta
-
-# RStudio session files
 .Rhistory
 .RData
 .Rproj.user/
+.Ruserdata
+*.Rprof
+*.Rout
+
+# Raw & large data
+data_raw/
+*.zip
+*.gz
+*.fst
+*.parquet
+*.sav
+*.dta
+
+# Intermediates you don't want to track by default
+data_clean/*.fst
+data_clean/*.parquet
+data_clean/*_tmp*.csv
+
+# Outputs (keep png/csv if you want)
+outputs/*.rds
+outputs/*.feather
+outputs/*.pdf
+outputs/*.html
+!outputs/*.png
+!outputs/*.csv
 
 .DS_Store
-.Rapp.history
+Thumbs.db

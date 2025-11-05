@@ -1,0 +1,8 @@
+paths:
+  in_path: "data_clean/snap_laus_with_policy.csv"
+  out_dir: "outputs"
+did:
+  min_e: -12
+  max_e: 24
+  cluster: ["id_num"]
+  xformla: "~ unemp_z"
