@@ -7,7 +7,7 @@ message("== STEP 2: DML + BLP ==")
 if (file.exists("R/02_dml_blp.R"))     source("R/02_dml_blp.R")
 
 message("== STEP 3: DID (CS) ==")
-source("R/03_did_cs.R")
+source("R/01_did_cs.R")
 
 message("== STEP 4: POST-PROCESS ==")
 if (file.exists("R/04_postprocess.R")) source("R/04_postprocess.R")
