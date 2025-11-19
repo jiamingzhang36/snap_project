@@ -180,340 +180,284 @@ make_es_plot(
   file_name = "fig_es_main.png"
 )
 
+
+
 ############################################################
-# 2. ROBUSTNESS CHECKS
+# 2. ROBUSTNESS CHECKS (FINAL & CLEAN)
 ############################################################
 
 cat("\n╔", strrep("═", 60), "╗\n", sep = "")
-cat("║", sprintf("%-60s", " ROBUSTNESS CHECKS"), "║\n", sep = "")
+cat("║", sprintf("%-60s", " 2. ROBUSTNESS CHECKS"), "║\n", sep = "")
 cat("╚", strrep("═", 60), "╝\n\n", sep = "")
 
 results_list <- list()
 
-# Store main result
-results_list[["Main (anticipation=2)"]] <- list(
-  att = overall_main$overall.att,
-  se = overall_main$overall.se
+# Store Baseline Result (from Main Specification)
+results_list[["Main (CS, Ant=2)"]] <- list(
+  att = overall_main$overall.att, 
+  se  = overall_main$overall.se
 )
 
-### A. Anticipation Sensitivity ###
-cat("\n[A] Anticipation window sensitivity...\n")
-for (k in c(0, 1, 3, 4, 6)) {
-  res <- run_cs_did(df_main, anticipation = k)
-  results_list[[paste0("Anticipation=", k)]] <- list(
-    att = safe_val(res$overall$overall.att),
-    se = safe_val(res$overall$overall.se)
+# =========================================================
+# [A] Anticipation Sensitivity Scan (0 to 6 months)
+#     Goal: Validate that the effect stabilizes at Ant=2
+# =========================================================
+cat("\n[A] Anticipation Sensitivity Scan (0-6 months)...\n")
+
+ant_scan_list <- list()
+
+for (k in 0:6) {
+  cat(sprintf("    Running Anticipation = %d...\n", k))
+  res_k <- run_cs_did(df_main, anticipation = k)
+  
+  # Store for plotting
+  ant_scan_list[[paste0(k)]] <- data.frame(
+    Horizon  = k,
+    ATT      = res_k$overall$overall.att,
+    SE       = res_k$overall$overall.se
   )
+  
+  # Store specific key horizons (0 and 6) for the main results table
+  if (k %in% c(0, 6)) {
+    results_list[[paste0("Anticipation = ", k)]] <- list(
+      att = res_k$overall$overall.att,
+      se  = res_k$overall$overall.se
+    )
+  }
 }
 
-### B. Drop Small Cohorts ###
-cat("\n[B] Drop small cohorts...\n")
-cohort_sizes <- df_main %>%
-  filter(G_int > 0) %>%
-  distinct(id_num, G_int) %>%
-  count(G_int, name = "n_units")
+# --- Plotting the Anticipation Sensitivity ---
+df_ant_scan <- bind_rows(ant_scan_list) %>%
+  mutate(
+    CI_lower = ATT - 1.96 * SE,
+    CI_upper = ATT + 1.96 * SE
+  )
 
-small_G <- cohort_sizes %>% filter(n_units <= 4) %>% pull(G_int)
-cat(sprintf("Dropping cohorts: %s\n", paste(small_G, collapse = ", ")))
+p_sens <- ggplot(df_ant_scan, aes(x = Horizon, y = ATT)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray40") +
+  geom_ribbon(aes(ymin = CI_lower, ymax = CI_upper), fill = "#0072B2", alpha = 0.2) +
+  geom_line(color = "#0072B2", linewidth = 1) +
+  geom_point(size = 3, color = "#0072B2") +
+  geom_vline(xintercept = 2, linetype = "dotted", color = "red") +
+  annotate("text", x = 2.1, y = max(df_ant_scan$CI_upper), 
+           label = "Main (Ant=2)", color = "red", hjust = 0) +
+  scale_x_continuous(breaks = 0:6, name = "Anticipation Horizon (Months)") +
+  labs(
+    title = "Sensitivity of ATT to Anticipation Horizon",
+    subtitle = "Validating the timing of behavioral response",
+    y = "Average Treatment Effect (ATT)"
+  ) +
+  theme_bw(base_size = 14)
 
-df_rb_small <- df_main %>% filter(!(G_int %in% small_G))
-res_rb_small <- run_cs_did(df_rb_small)
-results_list[["Drop small cohorts (≤4)"]] <- list(
-  att = safe_val(res_rb_small$overall$overall.att),
-  se = safe_val(res_rb_small$overall$overall.se)
-)
+ggsave(file.path(outdir, "fig_anticipation_sensitivity.png"), p_sens, width = 8, height = 5)
+cat("[✓] Sensitivity Plot saved: fig_anticipation_sensitivity.png\n")
 
-### C. Drop Large Counties ###
-cat("\n[C] Drop large counties...\n")
-# Check what county names actually exist
-cat("Sample county IDs:\n")
-print(head(unique(df_main$id), 10))
 
-drop_ids <- c("Wayne", "Wayne County", "26163")  # Try multiple formats
-df_drop_big <- df_main %>% filter(!id %in% drop_ids)
+# =========================================================
+# [B] Sensitivity: Control Group Selection
+#     Goal: Ensure results don't depend on control definition
+# =========================================================
+cat("\n[B] Sensitivity: Never-treated Control...\n")
 
-if (nrow(df_drop_big) < nrow(df_main)) {
-  cat(sprintf("Dropped %d rows\n", nrow(df_main) - nrow(df_drop_big)))
-  res_drop_big <- run_cs_did(df_drop_big)
-  results_list[["Drop Wayne County"]] <- list(
-    att = safe_val(res_drop_big$overall$overall.att),
-    se = safe_val(res_drop_big$overall$overall.se)
+if (any(df_main$G_int == 0)) {
+  res_nc <- run_cs_did(df_main, control_group = "nevertreated", anticipation = 2)
+  results_list[["Never-treated Control"]] <- list(
+    att = safe_val(res_nc$overall$overall.att),
+    se  = safe_val(res_nc$overall$overall.se)
   )
 } else {
-  cat("Wayne County not found in sample\n")
+  cat("    [!] Skipped: No never-treated units found.\n")
 }
 
-### D. Alternative Time Window ###
-cat("\n[D] Testing 2015-2018 window...\n")
-df_win <- build_analysis_df(Y_MAIN, as.Date("2015-01-01"), as.Date("2018-12-01"))
-res_win <- run_cs_did(df_win)
-results_list[["Time window 2015-2018"]] <- list(
-  att = safe_val(res_win$overall$overall.att),
-  se = safe_val(res_win$overall$overall.se)
-)
 
-### E. Never-Treated Control ###
-if (any(df_main$G_int == 0)) {
-  cat("\n[E] Testing never-treated control...\n")
-  res_nc <- run_cs_did(df_main, control_group = "nevertreated")
-  results_list[["Never-treated control"]] <- list(
-    att = safe_val(res_nc$overall$overall.att),
-    se = safe_val(res_nc$overall$overall.se)
+# =========================================================
+# [C] Sensitivity: Outliers (Drop Wayne County)
+#     Goal: Ensure results aren't driven by one large county
+# =========================================================
+cat("\n[C] Sensitivity: Excluding Wayne County (Outlier)...\n")
+
+drop_ids <- c("Wayne", "Wayne County", "26163") 
+df_drop <- df_main %>% filter(!id %in% drop_ids)
+
+if (nrow(df_drop) < nrow(df_main)) {
+  res_drop <- run_cs_did(df_drop, anticipation = 2)
+  results_list[["Excl. Wayne County"]] <- list(
+    att = safe_val(res_drop$overall$overall.att),
+    se  = safe_val(res_drop$overall$overall.se)
   )
+} else {
+  cat("    [!] Skipped: Wayne County ID not found.\n")
 }
 
-### F. Restricted Pre-Period ###
-cat("\n[F] Restricted pre-period (1 year)...\n")
-min_treat_time <- df_main %>% filter(G_int > 0) %>% pull(G_int) %>% min()
-restricted_start <- min_treat_time - 12
-df_restricted <- df_main %>% filter(t >= restricted_start)
-cat(sprintf("Sample: %d → %d rows\n", nrow(df_main), nrow(df_restricted)))
-res_restricted <- run_cs_did(df_restricted)
-results_list[["1-year pre-period only"]] <- list(
-  att = safe_val(res_restricted$overall$overall.att),
-  se = safe_val(res_restricted$overall$overall.se)
-)
 
-### G. Event-Study TWFE ###
-cat("\n[G] Event-study with TWFE...\n")
-df_es <- df_main %>%
+# =========================================================
+# [D] Method: Sun & Abraham (2021)
+#     Goal: Robustness to alternative staggered estimator
+# =========================================================
+cat("\n[D] Method: Sun & Abraham (2021) with Anticipation...\n")
+
+# Prepare data: sunab needs numeric G. Assign 10000 to never-treated.
+df_sa <- df_main %>%
+  mutate(G_sa = ifelse(G_int == 0, 10000, G_int))
+
+tryCatch({
+  # CRITICAL: Set ref.p = -3 to allow estimation of t=-2 and t=-1
+  # This aligns the SA model with the anticipation hypothesis.
+  sa_model <- feols(
+    Y ~ sunab(G_sa, t, ref.p = -3) + unemployment_rate + log_lf | id_num + t,
+    data = df_sa,
+    cluster = ~ id_num
+  )
+  
+  # Aggregate Post-treatment effects
+  sa_agg <- summary(sa_model, agg = "att")
+  
+  results_list[["Sun & Abraham (2021)"]] <- list(
+    att = sa_agg$coeftable[1, 1],
+    se  = sa_agg$coeftable[1, 2]
+  )
+  
+  # Plot SA to visualize the anticipation drop
+  png(file.path(outdir, "fig_es_sunab_ant.png"), width = 900, height = 600)
+  iplot(sa_model, main = "Sun & Abraham (Ref = -3): Evidence of Anticipation",
+        xlab = "Months relative to enforcement")
+  dev.off()
+  
+}, error = function(e) cat("[!] SA Failed:", conditionMessage(e), "\n"))
+
+
+# =========================================================
+# [E] Method: Static TWFE (Naive Benchmark)
+#     Goal: Show bias of traditional method vs CS
+# =========================================================
+cat("\n[E] Method: Static TWFE (Biased Benchmark)...\n")
+
+# Treatment indicator: 1 if treated AND post-date
+df_twfe <- df_main %>%
+  mutate(treat_post = ifelse(G_int > 0 & t >= G_int, 1, 0))
+
+tryCatch({
+  twfe_model <- feols(
+    Y ~ treat_post + unemployment_rate + log_lf | id_num + t,
+    data = df_twfe, cluster = ~ id_num
+  )
+  
+  results_list[["Static TWFE (Biased)"]] <- list(
+    att = coef(twfe_model)["treat_post"],
+    se  = se(twfe_model)["treat_post"]
+  )
+}, error = function(e) cat("[!] TWFE Failed:", conditionMessage(e), "\n"))
+
+
+# =========================================================
+# [F] Functional Form: Participation Rate (Level)
+#     Goal: Ensure results hold for Rate, not just Log
+# =========================================================
+cat("\n[F] Functional Form: Participation Rate (Level)...\n")
+
+# Reverse log(1+x) -> exp(x)-1 to get raw recipients, then calc rate per 1k
+df_rate <- df_main %>%
   mutate(
-    ever_treated = G_int > 0,
-    event_time = t - min_treat_time
+    recipients_est = exp(Y) - 1,
+    pop_safe       = ifelse(population_18_49 < 1, 1, population_18_49),
+    Y_rate         = (recipients_est / pop_safe) * 1000
   ) %>%
-  filter(event_time >= -24, event_time <= 18)
+  mutate(Y = Y_rate) %>% # Swap outcome variable
+  filter(is.finite(Y))
 
 tryCatch({
-  es_model <- feols(
-    Y ~ i(event_time, ever_treated, ref = c(-1, -2)) + 
-      unemployment_rate + log_lf | id_num + t,
-    data = df_es,
-    cluster = ~ id_num
-  )
+  res_rate <- run_cs_did(df_rate, anticipation = 2)
   
-  coefs <- coef(es_model)
-  post_coef_names <- grep("event_time::[0-9]+:1$", names(coefs), value = TRUE)
-  post_coefs <- coefs[post_coef_names]
+  cat(sprintf("    Rate ATT: %.4f (SE=%.4f)\n", 
+              res_rate$overall$overall.att, res_rate$overall$overall.se))
   
-  if (length(post_coefs) > 0) {
-    att_es <- mean(post_coefs, na.rm = TRUE)
-    vcv <- vcov(es_model)
-    post_ses <- sqrt(diag(vcv)[post_coef_names])
-    se_es <- sqrt(mean(post_ses^2, na.rm = TRUE))
-    
-    results_list[["Event-study TWFE"]] <- list(att = att_es, se = se_es)
-    cat(sprintf("Average post ATT: %.4f (SE=%.4f)\n", att_es, se_es))
-    
-    # Save plot
-    png(file.path(outdir, "fig_es_twfe.png"), width = 900, height = 600)
-    iplot(es_model, main = "Event-Study: TWFE Dynamic Effects")
-    abline(h = 0, lty = 2, col = "gray50")
-    abline(v = -0.5, lty = 2, col = "red")
-    dev.off()
-    cat("[✓] TWFE plot saved\n")
-  }
-}, error = function(e) cat("[✗] TWFE failed:", conditionMessage(e), "\n"))
+  # Note: We do NOT add this to results_list for the Forest Plot 
+  # because the y-axis scale is completely different (Level vs Log).
+}, error = function(e) cat("[!] Rate Check Failed:", conditionMessage(e), "\n"))
 
-### H. Simple DiD ###
-cat("\n[H] Simple difference-in-differences...\n")
-df_did <- df_main %>%
-  mutate(
-    ever_treated = G_int > 0,
-    post = t >= min_treat_time
-  )
-
-did_summary <- df_did %>%
-  group_by(ever_treated, post) %>%
-  summarise(Y = mean(Y, na.rm = TRUE), .groups = "drop")
-
-if (nrow(did_summary) == 4) {
-  treated_pre <- did_summary %>% filter(ever_treated, !post) %>% pull(Y)
-  treated_post <- did_summary %>% filter(ever_treated, post) %>% pull(Y)
-  control_pre <- did_summary %>% filter(!ever_treated, !post) %>% pull(Y)
-  control_post <- did_summary %>% filter(!ever_treated, post) %>% pull(Y)
-  
-  att_did <- (treated_post - treated_pre) - (control_post - control_pre)
-  results_list[["Simple DiD"]] <- list(att = att_did, se = NA_real_)
-  cat(sprintf("Simple DiD ATT: %.4f\n", att_did))
-}
-
-### I. County-Specific Trends ###
-cat("\n[I] County-specific linear trends...\n")
-df_trends <- df_main %>%
-  mutate(
-    ever_treated = G_int > 0,
-    post = t >= min_treat_time,
-    treat_post = ever_treated * post
-  )
-
-tryCatch({
-  trend_model <- feols(
-    Y ~ treat_post + unemployment_rate + log_lf | id_num + t + id_num[t],
-    data = df_trends,
-    cluster = ~ id_num
-  )
-  
-  att_trends <- coef(trend_model)["treat_post"]
-  se_trends <- sqrt(vcov(trend_model)["treat_post", "treat_post"])
-  
-  results_list[["With county trends"]] <- list(att = att_trends, se = se_trends)
-  cat(sprintf("ATT with trends: %.4f (SE=%.4f)\n", att_trends, se_trends))
-  
-}, error = function(e) cat("[✗] Trends failed:", conditionMessage(e), "\n"))
-
-### J. Pre-Trend Tests ###
-cat("\n[J] Pre-trend diagnostic tests...\n")
-df_trend_full <- df_main %>%
-  filter(t < min_treat_time) %>%
-  mutate(ever_treated = G_int > 0)
-
-if (nrow(df_trend_full) > 100) {
-  trend_full <- feols(
-    Y ~ ever_treated * t + unemployment_rate + log_lf | id_num,
-    data = df_trend_full,
-    cluster = ~ id_num
-  )
-  
-  interact_name <- grep("ever_treated.*:t|t:.*ever_treated", 
-                        names(coef(trend_full)), value = TRUE)[1]
-  
-  if (!is.na(interact_name)) {
-    trend_coef <- coef(trend_full)[interact_name]
-    trend_se <- sqrt(vcov(trend_full)[interact_name, interact_name])
-    trend_pval <- 2 * pnorm(-abs(trend_coef / trend_se))
-    
-    cat(sprintf("Full pre-period diff trend: %.4f (SE=%.4f, p=%.4f) %s\n",
-                trend_coef, trend_se, trend_pval,
-                ifelse(trend_pval < 0.05, "✗", "✓")))
-  }
-}
-
-### K. Balance Check ###
-cat("\n[K] Covariate balance check...\n")
-balance_df <- df_main %>%
-  filter(t < min_treat_time) %>%
-  mutate(treated = G_int > 0) %>%
-  group_by(id_num, treated) %>%
-  summarise(
-    unemployment_rate = mean(unemployment_rate, na.rm = TRUE),
-    log_lf = mean(log_lf, na.rm = TRUE),
-    baseline_Y = mean(Y, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-for (var in c("unemployment_rate", "log_lf", "baseline_Y")) {
-  t_test <- t.test(
-    balance_df[[var]][balance_df$treated],
-    balance_df[[var]][!balance_df$treated]
-  )
-  
-  cat(sprintf("%-20s: Treated=%.3f, Control=%.3f, p=%.3f %s\n",
-              var,
-              mean(balance_df[[var]][balance_df$treated], na.rm = TRUE),
-              mean(balance_df[[var]][!balance_df$treated], na.rm = TRUE),
-              t_test$p.value,
-              ifelse(t_test$p.value < 0.05, "✗", "✓")))
-}
-
-### L. Placebo Test ###
-cat("\n[L] Placebo test (pre-period only)...\n")
-df_pb <- build_analysis_df(Y_MAIN, as.Date("2014-01-01"), as.Date("2016-12-01"))
-fake_G <- as.integer(2015 * 12 + 1)
-treated_ids <- sample(unique(df_pb$id_num), size = min(20, length(unique(df_pb$id_num))))
-df_pb_placebo <- df_pb %>% mutate(G_int = ifelse(id_num %in% treated_ids, fake_G, 0L))
-res_pb <- run_cs_did(df_pb_placebo, anticipation = 0)
-results_list[["Placebo (pre-period)"]] <- list(
-  att = safe_val(res_pb$overall$overall.att),
-  se = safe_val(res_pb$overall$overall.se)
-)
 
 ############################################################
-# 3. RESULTS TABLE
+# 3. RESULTS TABLE & EXPORT
 ############################################################
 
 cat("\n╔", strrep("═", 60), "╗\n", sep = "")
-cat("║", sprintf("%-60s", " COMPREHENSIVE RESULTS"), "║\n", sep = "")
+cat("║", sprintf("%-60s", " 3. FINAL RESULTS TABLE"), "║\n", sep = "")
 cat("╚", strrep("═", 60), "╝\n\n", sep = "")
 
 results_df <- bind_rows(lapply(names(results_list), function(spec) {
   data.frame(
     Specification = spec,
     ATT = results_list[[spec]]$att,
-    SE = results_list[[spec]]$se
+    SE  = results_list[[spec]]$se
   )
 })) %>%
   mutate(
     CI_lower = ATT - 1.96 * SE,
     CI_upper = ATT + 1.96 * SE,
-    t_stat = abs(ATT / SE),
-    p_value = 2 * (1 - pnorm(t_stat)),
-    Sig = case_when(
-      is.na(p_value) ~ "",
-      p_value < 0.001 ~ "***",
-      p_value < 0.01 ~ "**",
-      p_value < 0.05 ~ "*",
-      p_value < 0.10 ~ "†",
+    t_stat   = abs(ATT / SE),
+    p_value  = 2 * (1 - pnorm(t_stat)),
+    Sig      = case_when(
+      p_value < 0.01 ~ "***",
+      p_value < 0.05 ~ "**",
+      p_value < 0.10 ~ "*",
       TRUE ~ ""
     )
   )
 
+# Print Table
 print(kable(results_df, digits = 4, format = "simple"))
 
+# Save CSV
 write_csv(results_df, file.path(outdir, "robustness_complete.csv"))
-cat("\n[✓] Results saved: robustness_complete.csv\n")
+cat("[✓] Table saved to robustness_complete.csv\n")
 
-### Summary Statistics ###
-cat("\n", strrep("-", 60), "\n", sep = "")
-cat("SUMMARY\n")
-cat(strrep("-", 60), "\n")
-
-non_placebo <- results_df %>% filter(Specification != "Placebo (pre-period)")
-cat(sprintf("Mean ATT:     %.4f\n", mean(non_placebo$ATT, na.rm = TRUE)))
-cat(sprintf("Median ATT:   %.4f\n", median(non_placebo$ATT, na.rm = TRUE)))
-cat(sprintf("Range:        [%.4f, %.4f]\n", 
-            min(non_placebo$ATT, na.rm = TRUE),
-            max(non_placebo$ATT, na.rm = TRUE)))
-cat(sprintf("Significant (p<0.05): %d/%d (%.0f%%)\n",
-            sum(non_placebo$p_value < 0.05, na.rm = TRUE),
-            nrow(non_placebo),
-            100 * mean(non_placebo$p_value < 0.05, na.rm = TRUE)))
 
 ############################################################
 # 4. FOREST PLOT
 ############################################################
 
-cat("\n[✓] Generating forest plot...\n")
+cat("\n[✓] Generating Forest Plot...\n")
 
 plot_data <- results_df %>%
-  filter(Specification != "Placebo (pre-period)", !is.na(ATT)) %>%
   mutate(
     spec_num = row_number(),
-    is_main = Specification == "Main (anticipation=2)"
+    # Grouping for color logic in plot
+    category = case_when(
+      grepl("Main", Specification) ~ "Main",
+      grepl("Sun|TWFE", Specification) ~ "Method",
+      TRUE ~ "Sensitivity"
+    )
   )
 
 p_forest <- ggplot(plot_data, aes(x = ATT, y = reorder(Specification, -spec_num))) +
   geom_vline(xintercept = 0, linetype = "dashed", color = "gray40", linewidth = 0.8) +
   geom_errorbar(aes(xmin = CI_lower, xmax = CI_upper), 
-                orientation = "y", width = 0.4, color = "gray50", linewidth = 0.6) +
-  geom_point(aes(color = is_main, size = is_main)) +
-  scale_color_manual(values = c("FALSE" = "#56B4E9", "TRUE" = "#D55E00")) +
-  scale_size_manual(values = c("FALSE" = 3, "TRUE" = 4.5)) +
+                orientation = "y", width = 0.3, color = "gray50") +
+  geom_point(aes(color = category, size = category)) +
+  scale_color_manual(values = c(
+    "Main"        = "#D55E00", # Orange (Highlight)
+    "Method"      = "#009E73", # Green (Alternative Estimators)
+    "Sensitivity" = "#56B4E9"  # Blue (Standard Checks)
+  )) +
+  scale_size_manual(values = c("Main"=4.5, "Method"=3.5, "Sensitivity"=3)) +
   labs(
-    title = "Forest Plot: Robustness Checks",
-    subtitle = "Effect of ABAWD enforcement on log SNAP participation",
+    title = "Robustness Checks: ABAWD Enforcement",
+    subtitle = "ATT on log(1+SNAP Participation) across specifications",
     x = "Average Treatment Effect on Treated (ATT)",
     y = NULL
   ) +
   theme_bw(base_size = 12) +
   theme(
-    legend.position = "none",
+    legend.position = "bottom",
+    legend.title = element_blank(),
     panel.grid.major.y = element_blank(),
-    panel.grid.minor = element_blank()
+    plot.title = element_text(face = "bold")
   )
 
-ggsave(file.path(outdir, "fig_forest_plot.png"), p_forest, width = 10, height = 8, dpi = 300)
-cat("[✓] Forest plot saved: fig_forest_plot.png\n")
+ggsave(file.path(outdir, "fig_forest_plot.png"), p_forest, width = 10, height = 7, dpi = 300)
+cat("[✓] Forest Plot saved to fig_forest_plot.png\n")
 
 cat("\n╔", strrep("═", 60), "╗\n", sep = "")
 cat("║", sprintf("%-60s", " ANALYSIS COMPLETE"), "║\n", sep = "")
 cat("╚", strrep("═", 60), "╝\n\n", sep = "")
+
