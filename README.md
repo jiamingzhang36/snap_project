@@ -105,8 +105,6 @@ The full pipeline will eventually be executed using:
 
 source("main.R")
 
-yaml
-Copy code
 
 The intended workflow for `main.R` (once finalized) is:
 
