@@ -60,12 +60,5 @@ Replication can be achieved using the same code structure with simulated or publ
 **Jiaming Zhang**  
 Ph.D. Student, Department of Agricultural, Food, and Resource Economics  
 Michigan State University  
-📧 Email: zhangjiaming3608@gmail.com
 
 ---
-
-## 📄 Citation
-If you use or reference this work, please cite as:
-
-> Zhang, J. (2025). *Assessing the Impacts of SNAP Work Requirements in Michigan.*  
-> Michigan State University, Department of Agricultural, Food, and Resource Economics.
