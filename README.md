@@ -29,12 +29,6 @@ The analysis is designed for **policy evaluation**, **causal inference**, and **
 
 ---
 
-## 📂 Repository Structure
-
-
-
----
-
 ## ⚙️ Software Requirements
 - **R (≥ 4.2)**  
   Key packages: `did`, `data.table`, `tidyverse`, `fixest`
@@ -61,4 +55,3 @@ Replication can be achieved using the same code structure with simulated or publ
 Ph.D. Student, Department of Agricultural, Food, and Resource Economics  
 Michigan State University  
 
----
