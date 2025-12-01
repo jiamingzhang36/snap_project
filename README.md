@@ -176,8 +176,15 @@ The `config.yml` file defines:
 
 # Data Availability
 
-The SNAP administrative data used in this project are confidential and cannot be released publicly.  
-All scripts have been written so they can be adapted to publicly available data sources (ACS, LAUS) or simulated datasets.
+All data used in this project come from publicly accessible sources, including:
+
+- U.S. Census Bureau ACS (American Community Survey)
+- Bureau of Labor Statistics LAUS (Local Area Unemployment Statistics)
+- USDA FNS SNAP policy documents
+- Michigan ABAWD waiver and work requirement policy releases
+
+No confidential or restricted administrative SNAP data are used in this project.  
+All data can be downloaded directly from the respective official sources, and the analysis scripts are fully reusable with publicly available datasets.
 
 ---
 
