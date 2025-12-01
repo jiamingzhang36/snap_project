@@ -2,56 +2,188 @@
 
 This repository contains the code, documentation, and supporting materials for the project **"Assessing the Impacts of SNAP Work Requirements in Michigan"**, conducted as part of research in the Department of Agricultural, Food, and Resource Economics (AFRE) at Michigan State University.
 
----
-
-## 📌 Overview
-The project evaluates the effects of the reinstated ABAWD (Able-Bodied Adults Without Dependents) work requirement policy in Michigan using a county-month panel dataset (2016–2019).  
-It aims to quantify how the policy affected SNAP participation, exits, and local labor market outcomes.
-
-The analysis is designed for **policy evaluation**, **causal inference**, and **forecasting** under varying local economic conditions.
+**Note:**  
+This repository is still under development. Several scripts, outputs, and model components are not yet finalized, and the full pipeline is not currently fully reproducible. A complete replication-ready version will be released once all data cleaning, estimation, and forecasting components are finalized.
 
 ---
 
-## 🧮 Methods
-1. **Staggered Difference-in-Differences (DiD)**  
-   - Implements the Callaway & Sant’Anna (2021) estimator to identify the average treatment effects of the work requirement rollout.  
-   - Controls for county and time fixed effects.  
-   - Robust to staggered treatment timing.
+## Overview
 
-2. **Heterogeneity Analysis via Double Machine Learning (DML)**  
-   - Based on Chernozhukov et al. (2018).  
-   - Identifies how policy impacts vary across counties with different baseline characteristics (e.g., unemployment rate, waiver status, demographics).  
-   - Uses machine learning (Random Forest, Lasso) for high-dimensional control adjustment.
+This project evaluates the effects of Michigan’s reinstated Able-Bodied Adults Without Dependents (ABAWD) work requirement policy using a county-month panel dataset. The goal is to measure:
 
-3. **Forecasting SNAP Exit Risk (Micro-level Simulation)**  
-   - Predicts individual-level risk of losing benefits under expanded work requirements.  
-   - Incorporates demographic and employment predictors.
+- The causal impact of work requirements on SNAP caseloads  
+- Heterogeneous treatment effects across counties with different labor market and demographic conditions  
+- Forecasted outcomes under the 2025 expansion of work requirements  
+- Individual-level exit risk using machine learning models  
 
 ---
 
-## ⚙️ Software Requirements
-- **R (≥ 4.2)**  
-  Key packages: `did`, `data.table`, `tidyverse`, `fixest`
-- **Python (≥ 3.9)**  
-  Key packages: `pandas`, `econml`, `DoubleML`, `scikit-learn`
+# Directory Structure
+
+snap_project/
+│
+├── main.R # Master script for running the full pipeline
+├── config.yml # Global configuration settings and paths
+├── README.md # Project documentation
+│
+├── R/
+│ ├── 01_clean_acs.R # Cleans ACS-based county demographic data
+│ ├── 01_clean_other.R # Cleans SNAP, LAUS, CPI, waiver, and other supporting data
+│ ├── 01_did_cs.R # Callaway and Sant’Anna (2021) Difference-in-Differences estimation
+│ ├── 02_dml_blp.R # Double Machine Learning and Best Linear Predictor heterogeneity analysis
+│ ├── 03_forecast_2025.R # Forecasts SNAP caseloads under 2025 work requirement expansion
+│ ├── 04_individual_risk.R # Individual-level exit risk prediction
+│ ├── utils.R # Utility functions used throughout the pipeline
+│ └── FAP_batch_extractor.ipynb # Notebook for batch extraction (in development)
+│
+├── data_clean/ # Cleaned datasets and intermediate outputs
+│
+└── outputs/ # Final tables, figures, and model outputs
+├── figures/
+├── tables/
+└── models/
+
+markdown
+Copy code
 
 ---
 
-## 🚫 Data Availability
-The underlying SNAP administrative and labor market data are confidential and cannot be publicly shared.  
-Replication can be achieved using the same code structure with simulated or publicly available data (e.g., ACS, LAUS).
+# Script Overview
+
+### 01_clean_acs.R
+- Cleans and processes ACS demographic and socioeconomic variables at the county level.
+- Produces standardized features for heterogeneity and forecasting.
+- Outputs saved to `data_clean/`.
+
+### 01_clean_other.R
+- Cleans SNAP caseload data, LAUS unemployment data, CPI data, and ABAWD waiver information.
+- Constructs the baseline county-month panel.
+- Outputs saved to `data_clean/`.
+
+### 01_did_cs.R
+- Implements staggered Difference-in-Differences using the Callaway and Sant’Anna (2021) estimator.
+- Produces:
+  - Group-time ATTs  
+  - Event-study estimates  
+  - Main treatment-effect tables  
+- Outputs saved to `outputs/tables/` and `outputs/figures/`.
+**Status:** This component is still under development.
+
+### 02_dml_blp.R
+- Performs Double Machine Learning (DML) for heterogeneous treatment effects.
+- Computes:
+  - Conditional Average Treatment Effects (CATEs)  
+  - Best Linear Predictor (BLP) of heterogeneity  
+- Outputs saved to `outputs/models/`.
+**Status:** This component is still under development.
+
+### 03_forecast_2025.R
+- Forecasts SNAP caseload changes under the 2025 expansion of work requirements.
+- Uses DiD results and CATE estimates to simulate alternative policy scenarios.
+- Outputs saved to `outputs/tables/forecasts/`.
+
+**Status:** This forecasting component is still under development.
+
+### 04_individual_risk.R
+- Uses machine learning models to estimate the probability of exiting SNAP under work requirements at the individual level.
+- Designed for microdata or simulated individual-level inputs.
+
+**Status:** Early development stage.
+
+### utils.R
+- Contains helper functions used across scripts, including:
+  - Standardized plotting functions  
+  - File path utilities  
+  - Variable transformation helpers  
+
+### FAP_batch_extractor.ipynb
+- Experimental notebook used for batch data extraction.
+- Not part of the main pipeline.
 
 ---
 
-## 📈 Key Outputs
-- County-level estimates of SNAP participation changes  
-- Heterogeneous effects by local economic conditions  
-- Predicted exit risk profiles for ABAWD recipients
+# How to Run the Project
+
+The full pipeline will eventually be executed using:
+
+source("main.R")
+
+yaml
+Copy code
+
+The intended workflow for `main.R` (once finalized) is:
+
+1. Load configuration settings from `config.yml`.  
+2. Run data cleaning scripts.  
+3. Estimate treatment effects using Difference-in-Differences.  
+4. Estimate heterogeneous effects via Double Machine Learning.  
+5. Generate forecasts for 2025 policy changes.  
+6. Estimate individual exit risk.  
+7. Save all outputs to the appropriate directories in `outputs/`.
+
+At this stage, the full pipeline is **not yet executable** end-to-end.
 
 ---
 
-## 👤 Author
-**Jiaming Zhang**  
-Ph.D. Student, Department of Agricultural, Food, and Resource Economics  
-Michigan State University  
+# Output Locations
 
+### Tables
+
+| Output Type | Generated By |
+|-------------|--------------|
+| Summary statistics | 01_clean_acs.R / 01_clean_other.R |
+| Main ATT estimates | 01_did_cs.R |
+| Heterogeneity (BLP) results | 02_dml_blp.R |
+| Forecast tables | 03_forecast_2025.R |
+
+### Figures
+
+| Figure Type | Generated By |
+|-------------|--------------|
+| Event-study plots | 01_did_cs.R |
+| Heterogeneity (CATE/BLP) plots | 02_dml_blp.R |
+| Forecast visualizations | 03_forecast_2025.R |
+
+Some outputs may not yet be generated due to incomplete components.
+
+---
+
+# Software Requirements
+
+## R Packages
+
+- tidyverse  
+- data.table  
+- did  
+- fixest  
+- grf  
+- glmnet  
+- randomForest  
+- yaml  
+
+
+
+# Configuration File
+
+The `config.yml` file defines:
+
+- Input data paths  
+- Output directories  
+- Year ranges  
+- Parameter settings for forecasting and modeling  
+
+---
+
+# Data Availability
+
+The SNAP administrative data used in this project are confidential and cannot be released publicly.  
+All scripts have been written so they can be adapted to publicly available data sources (ACS, LAUS) or simulated datasets.
+
+---
+
+# Author
+
+Jiaming Zhang  
+Ph.D. Student  
+Department of Agricultural, Food, and Resource Economics  
+Michigan State University
