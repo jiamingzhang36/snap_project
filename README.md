@@ -20,31 +20,28 @@ This project evaluates the effects of Michigan’s reinstated Able-Bodied Adults
 
 # Directory Structure
 
+```
 snap_project/
 │
-├── main.R # Master script for running the full pipeline
-├── config.yml # Global configuration settings and paths
-├── README.md # Project documentation
+├── main.R                       # Master script for running the full pipeline
+├── config.yml                   # Global configuration settings and paths
+├── README.md                    # Project documentation
 │
 ├── R/
-│ ├── 01_clean_acs.R # Cleans ACS-based county demographic data
-│ ├── 01_clean_other.R # Cleans SNAP, LAUS, CPI, waiver, and other supporting data
-│ ├── 01_did_cs.R # Callaway and Sant’Anna (2021) Difference-in-Differences estimation
-│ ├── 02_dml_blp.R # Double Machine Learning and Best Linear Predictor heterogeneity analysis
-│ ├── 03_forecast_2025.R # Forecasts SNAP caseloads under 2025 work requirement expansion
-│ ├── 04_individual_risk.R # Individual-level exit risk prediction
-│ ├── utils.R # Utility functions used throughout the pipeline
-│ └── FAP_batch_extractor.ipynb # Notebook for batch extraction (in development)
+│   ├── 01_clean_acs.R           # Cleans ACS-based county demographic data
+│   ├── 01_clean_other.R         # Cleans SNAP, LAUS, CPI, waiver, and other supporting data
+│   ├── 01_did_cs.R              # Callaway and Sant’Anna (2021) Difference-in-Differences estimation
+│   ├── 02_dml_blp.R             # Double Machine Learning and Best Linear Predictor heterogeneity analysis
+│   ├── 03_forecast_2025.R       # Forecasts SNAP caseloads under 2025 work requirement expansion
+│   ├── 04_individual_risk.R     # Individual-level exit risk prediction
+│   ├── utils.R                  # Utility functions used throughout the pipeline
+│   └── FAP_batch_extractor.ipynb # Notebook for batch extraction (in development)
 │
-├── data_clean/ # Cleaned datasets and intermediate outputs
+├── data_clean/                  # Cleaned datasets and intermediate outputs
 │
-└── outputs/ # Final tables, figures, and model outputs
-├── figures/
-├── tables/
-└── models/
+└── outputs/                     # Final tables, figures, and model outputs
+```
 
-markdown
-Copy code
 
 ---
 
