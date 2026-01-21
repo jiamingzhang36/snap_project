@@ -575,8 +575,8 @@ panel_rs <- panel_svi %>%
 miss_rucc <- panel_rs %>% filter(is.na(rucc_code)) %>% distinct(county_id) %>% nrow()
 miss_svi  <- panel_rs %>% filter(is.na(svi_total)) %>% distinct(county_id, year) %>% nrow()
 
-message(sprintF("Diagnostics — missing RUCC counties: %d", miss_rucc))
-message(sprintF("Diagnostics — missing SVI county-years: %d", miss_svi))
+message(sprintf("Diagnostics — missing RUCC counties: %d", miss_rucc))
+message(sprintf("Diagnostics — missing SVI county-years: %d", miss_svi))
 
 # Spot-check
 message("Preview with new columns:")
@@ -586,8 +586,6 @@ print(panel_rs %>% select(county_id, county, year, month, rucc_code, urban_dummy
 out_path <- file.path(in_clean, "fap_laus_rucc_svi.csv")
 write_csv(panel_rs, out_path)
 message("✅ Saved: ", out_path)
-
-
 
 
 
@@ -831,7 +829,6 @@ message("✅ Saved merged monthly panel with ACS (annual lags): ", out_path)
 
 
 
-
 # --- Michigan ABAWD waiver coding (final, consistent with your county lists) ---
 
 library(dplyr)
@@ -839,17 +836,16 @@ library(lubridate)
 library(readr)
 library(stringr)
 
-data <- read_csv("/Users/jiamingzhang/Desktop/snap_project/data_clean/snap_laus_MI_monthly_2016_2025.csv",
+# Use the panel built above (FAP × LAUS × RUCC × SVI × ACS lags)
+data <- read_csv(file.path(in_clean, "panel_with_acs.csv"),
                  show_col_types = FALSE) %>%
   mutate(county = str_squish(str_to_title(str_remove(county, "\\s*County\\b"))))
 
-# 清理无效县名，确保只有官方83个县
 data <- data %>%
   mutate(county = str_squish(str_to_title(str_remove(county, "\\s*County\\b")))) %>%
   filter(!county %in% c("X-Unassigned", "Unknown", "Unassigned", "Statewide", "Total")) %>%
   distinct(county, year, month, .keep_all = TRUE)
 
-## 2017: 79 waived counties（你提供的 Appendix 1）
 waived_2017 <- c(
   "Alcona","Alger","Allegan","Alpena","Antrim","Arenac","Baraga","Barry","Bay","Benzie","Berrien","Branch",
   "Calhoun","Cass","Charlevoix","Cheboygan","Chippewa","Clare","Clinton","Crawford","Delta","Dickinson","Eaton",
@@ -860,10 +856,8 @@ waived_2017 <- c(
   "Osceola","Oscoda","Otsego","Presque Isle","Roscommon","Saginaw","Sanilac","Schoolcraft","Shiawassee",
   "St. Clair","St. Joseph","Tuscola","Van Buren","Wayne","Wexford"
 )
-# 非豁免(执行)的 4 县（2017）
 nonwaived_2017 <- setdiff(unique(data$county), waived_2017)
 
-## 2018 & 2019: 69 waived counties（你提供的 Appendix 2；与 2019 相同）
 waived_2018_2019 <- c(
   "Alcona","Alger","Alpena","Antrim","Arenac","Baraga","Bay","Benzie","Branch","Calhoun","Cass","Charlevoix",
   "Cheboygan","Chippewa","Clare","Crawford","Delta","Dickinson","Emmet","Genesee","Gladwin","Gogebic","Gratiot",
@@ -873,10 +867,9 @@ waived_2018_2019 <- c(
   "Oscoda","Otsego","Presque Isle","Roscommon","Saginaw","Sanilac","Schoolcraft","Shiawassee","St. Clair",
   "St. Joseph","Tuscola","Van Buren","Wayne","Wexford"
 )
-# 2018/2019 非豁免(执行)的 14 县
+
 nonwaived_2018_2019 <- setdiff(unique(data$county), waived_2018_2019)
 
-## 2020 Feb–Mar: 77 waived counties（你提供的 Appendix 3）
 waived_2020_feb_mar <- c(
   "Alcona","Alger","Alpena","Antrim","Arenac","Baraga","Barry","Bay","Benzie","Berrien","Branch","Calhoun","Cass",
   "Charlevoix","Cheboygan","Chippewa","Clare","Clinton","Crawford","Delta","Dickinson","Eaton","Emmet","Genesee",
@@ -887,34 +880,26 @@ waived_2020_feb_mar <- c(
   "Roscommon","Saginaw","Sanilac","Schoolcraft","Shiawassee","St. Clair","St. Joseph","Tuscola","Van Buren",
   "Wayne","Wexford"
 )
-# 2020-02/03 执行（非豁免）的 6 县 = 全 83 - 这 77
 nonwaived_2020_feb_mar <- setdiff(unique(data$county), waived_2020_feb_mar)
 
-# ---------- 编码 ----------
 out <- data %>%
   mutate(
     ym = make_date(year, month, 1),
     waived = case_when(
-      # 2016: 全州豁免
       ym >= ymd("2016-01-01") & ym <= ymd("2016-12-01") ~ 1L,
       
-      # 2017: 79 县豁免（→其余 4 县执行）
       ym >= ymd("2017-01-01") & ym <= ymd("2017-12-01") &
         county %in% waived_2017 ~ 1L,
       
-      # 2018: 69 县豁免（全年度按 69 县口径，不是 7–9 月 statewide）
       ym >= ymd("2018-01-01") & ym <= ymd("2018-12-01") &
         county %in% waived_2018_2019 ~ 1L,
       
-      # 2019: 同 2018，69 县豁免
       ym >= ymd("2019-01-01") & ym <= ymd("2019-12-01") &
         county %in% waived_2018_2019 ~ 1L,
       
-      # 2020-02 ~ 2020-03：77 县豁免（→其余 6 县执行）
       ym >= ymd("2020-02-01") & ym <= ymd("2020-03-01") &
         county %in% waived_2020_feb_mar ~ 1L,
       
-      # 2020-08 起：全州豁免
       ym >= ymd("2020-08-01") ~ 1L,
       
       TRUE ~ 0L
@@ -922,7 +907,6 @@ out <- data %>%
     enforced = 1L - waived
   )
 
-# ---------- 审计：每月豁免县数是否等于预期 ----------
 check <- out %>%
   filter(year %in% 2016:2020) %>%
   group_by(year, month) %>%
@@ -944,8 +928,8 @@ cat(sprintf("审计不匹配的月份：%d 个\n",
             sum(!check$ok, na.rm = TRUE)))
 
 # 输出
-write_csv(out, "snap_laus_with_policy.csv")
-cat("✅ 写出：snap_laus_with_policy.csv\n")
+write_csv(out, file.path(in_clean, "snap_laus_with_policy.csv"))
+cat("✅ 写出：data_clean/snap_laus_with_policy.csv\n")
 
 
 
@@ -1191,31 +1175,46 @@ G_table <- panel0 %>%
   select(id_key, G)
 
 # =========================
-# 6) Build Y’s and attach G
+# 6) Build outcomes and attach G
 # =========================
 panel <- panel0 %>%
   mutate(
     id   = if (has_fips) county_id else county,
     date = ym_date,
-    # Raw recipients
-    y_raw = .data[[recip_col]],
-    # Per 1k total population
+
+    # Raw recipients (force numeric)
+    y_raw = as.numeric(.data[[recip_col]]),
+
+    # Rates
     y_per1k_total = if (!is.na(pop_total_col)) {
-      ifelse(.data[[pop_total_col]] > 0, 1000 * (y_raw / .data[[pop_total_col]]), NA_real_)
+      ifelse(as.numeric(.data[[pop_total_col]]) > 0,
+             1000 * (y_raw / as.numeric(.data[[pop_total_col]])),
+             NA_real_)
     } else NA_real_,
-    # Per 1k 18–49
+
     y_per1k_18_49 = if (!is.na(pop_18_49_col)) {
-      ifelse(.data[[pop_18_49_col]] > 0, 1000 * (y_raw / .data[[pop_18_49_col]]), NA_real_)
+      ifelse(as.numeric(.data[[pop_18_49_col]]) > 0,
+             1000 * (y_raw / as.numeric(.data[[pop_18_49_col]])),
+             NA_real_)
     } else NA_real_,
-    # Per 100 labor force
-    y_per100_lf   = if (!is.na(labor_force_col)) {
-      ifelse(.data[[labor_force_col]] > 0, 100 * (y_raw / .data[[labor_force_col]]), NA_real_)
+
+    y_per100_lf = if (!is.na(labor_force_col)) {
+      ifelse(as.numeric(.data[[labor_force_col]]) > 0,
+             100 * (y_raw / as.numeric(.data[[labor_force_col]])),
+             NA_real_)
     } else NA_real_,
-    # Logs
+
+    # log(1 + x): safe when x can be zero
     y_log1p_raw         = log1p(y_raw),
     y_log1p_per1k_total = log1p(y_per1k_total),
     y_log1p_per1k_18_49 = log1p(y_per1k_18_49),
-    y_log1p_per100_lf   = log1p(y_per100_lf)
+    y_log1p_per100_lf   = log1p(y_per100_lf),
+
+    # log(x): use when x is strictly > 0 (clean percent-change interpretation)
+    y_log_raw = ifelse(!is.na(y_raw) & y_raw > 0, log(y_raw), NA_real_),
+    y_log_per1k_total = ifelse(!is.na(y_per1k_total) & y_per1k_total > 0, log(y_per1k_total), NA_real_),
+    y_log_per1k_18_49 = ifelse(!is.na(y_per1k_18_49) & y_per1k_18_49 > 0, log(y_per1k_18_49), NA_real_),
+    y_log_per100_lf   = ifelse(!is.na(y_per100_lf)   & y_per100_lf   > 0, log(y_per100_lf), NA_real_)
   ) %>%
   left_join(G_table, by = c("id" = "id_key")) %>%
   mutate(G = ifelse(is.na(G), "0", G)) %>%
@@ -1227,17 +1226,24 @@ panel <- panel %>%
   arrange(date, .by_group = TRUE) %>%
   mutate(
     y_raw_lag1 = dplyr::lag(y_raw, 1),
+
     # Exit rate: share of previous month's caseload that exits (truncate negative to 0)
-    y_exit_rate_raw = ifelse(!is.na(y_raw_lag1) & y_raw_lag1 > 0, (y_raw_lag1 - y_raw)/y_raw_lag1, NA_real_),
+    y_exit_rate_raw = ifelse(!is.na(y_raw_lag1) & y_raw_lag1 > 0,
+                             (y_raw_lag1 - y_raw) / y_raw_lag1,
+                             NA_real_),
     y_exit_rate = pmax(y_exit_rate_raw, 0),
+
     # Exits count (non-negative)
     y_exits_count = pmax(y_raw_lag1 - y_raw, 0),
-    # Exits per 1k 18–49
+
+    # Exits per 1k age 18-49
     y_exit_per1k_18_49 = if (!is.na(pop_18_49_col)) {
-      ifelse(!is.na(.data[[pop_18_49_col]]) & .data[[pop_18_49_col]] > 0,
-             1000 * y_exits_count / .data[[pop_18_49_col]], NA_real_)
+      ifelse(!is.na(.data[[pop_18_49_col]]) & as.numeric(.data[[pop_18_49_col]]) > 0,
+             1000 * y_exits_count / as.numeric(.data[[pop_18_49_col]]),
+             NA_real_)
     } else NA_real_,
-    # Log(1 + exits per 1k 18–49)
+
+    # log(1 + exits per 1k age 18-49)
     y_log1p_exit_per1k_18_49 = log1p(y_exit_per1k_18_49)
   ) %>%
   ungroup() %>%
@@ -1249,56 +1255,42 @@ y_map <- c(
   per1k_total             = "y_per1k_total",
   per1k_18_49             = "y_per1k_18_49",
   per100_lf               = "y_per100_lf",
+
+  # NEW: pure logs (no +1)
+  log_raw                 = "y_log_raw",
+  log_per1k_total         = "y_log_per1k_total",
+  log_per1k_18_49         = "y_log_per1k_18_49",
+  log_per100_lf           = "y_log_per100_lf",
+
+  # Existing: log1p
   log1p_raw               = "y_log1p_raw",
   log1p_per1k_total       = "y_log1p_per1k_total",
   log1p_per1k_18_49       = "y_log1p_per1k_18_49",
   log1p_per100_lf         = "y_log1p_per100_lf",
+
   exit_rate               = "y_exit_rate",
   exit_per1k_18_49        = "y_exit_per1k_18_49",
   log1p_exit_per1k_18_49  = "y_log1p_exit_per1k_18_49"
 )
+
 if (!Y_MODE %in% names(y_map)) {
   stop("Y_MODE not recognized. Choose one of: ", paste(names(y_map), collapse = ", "))
 }
+
 panel <- panel %>% mutate(outcome_final = .data[[y_map[[Y_MODE]]]])
 
-# =========================
-# 7) QC snapshots
-# =========================
-dup_chk <- panel %>% count(id, year, month) %>% filter(n > 1)
-if (nrow(dup_chk) > 0) {
-  write_csv(dup_chk, file.path(out_dir, "dup_rows_check.csv"))
-  warning("Found duplicated id-year-month rows. See dup_rows_check.csv")
+# Optional: warn if you picked a log_* outcome but there are NAs from nonpositive values
+if (startsWith(Y_MODE, "log_")) {
+  na_share <- mean(is.na(panel$outcome_final))
+  if (na_share > 0) {
+    warning(sprintf("Y_MODE=%s produces %.2f%% NA (likely due to nonpositive values). Consider log1p_* if zeros exist.",
+                    Y_MODE, 100 * na_share))
+  }
 }
 
-cohort_sizes <- panel %>%
-  filter(G != "0") %>%
-  distinct(id, G) %>%
-  count(G, name = "n_ids") %>%
-  arrange(G)
-
-support_snapshot <- panel %>%
-  mutate(
-    t_ym = year(date) * 12L + month(date),
-    G_ym = ifelse(G == "0", NA_integer_,
-                  as.integer(substr(G,1,4)) * 12L + as.integer(substr(G,6,7)))
-  ) %>%
-  group_by(date) %>%
-  summarise(
-    n_treated = n_distinct(id[!is.na(G_ym) & t_ym >= G_ym]),
-    n_control = n_distinct(id[is.na(G_ym) | t_ym < G_ym]),
-    .groups = "drop"
-  ) %>%
-  arrange(date)
-
 # =========================
-# 8) Save artifacts
+# 8) Save artifacts (update wide outcomes to include log_* columns)
 # =========================
-write_csv(out,           out_policy)
-write_csv(panel,         out_panelG)
-write_csv(cohort_sizes,  out_cohort)
-write_csv(support_snapshot, out_support)
-
 panel_input <- panel %>%
   transmute(id, date = format(date, "%Y-%m-%d"), outcome = outcome_final, G)
 write_csv(panel_input, out_panel_input)
@@ -1308,18 +1300,12 @@ outcomes_wide <- panel %>%
     id, county, year, month, date, G,
     y_raw,
     y_per1k_total, y_per1k_18_49, y_per100_lf,
+    # NEW: log (no +1)
+    y_log_raw, y_log_per1k_total, y_log_per1k_18_49, y_log_per100_lf,
+    # Existing: log1p
     y_log1p_raw, y_log1p_per1k_total,
     y_log1p_18_49 = y_log1p_per1k_18_49,
     y_log1p_per100_lf
   )
 write_csv(outcomes_wide, out_outcomeswide)
 
-cat("=== BUILD PANEL WITH G + SELECTED Y: DONE ===\n")
-cat("Y_MODE (panel_input outcome): ", Y_MODE, "\n", sep = "")
-cat("Outputs:\n",
-    "  - ", out_policy, "\n",
-    "  - ", out_panelG, "\n",
-    "  - ", out_panel_input, "\n",
-    "  - ", out_cohort, "\n",
-    "  - ", out_support, "\n",
-    "  - ", out_outcomeswide, "\n", sep = "")
