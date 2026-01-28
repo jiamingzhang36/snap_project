@@ -3,13 +3,15 @@
 ## Writes to : /Users/jiamingzhang/Desktop/snap_project/data_clean
 
 suppressPackageStartupMessages({
-  library(readr); library(readr); library(dplyr); library(stringr)
+  library(readr); library(dplyr); library(stringr)
   library(tidyr); library(lubridate)
 })
 
 in_dir  <- "/Users/jiamingzhang/Desktop/snap_project/data_raw"
 out_dir <- "/Users/jiamingzhang/Desktop/snap_project/data_raw"
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+
+# Note: out_dir is set to data_raw for LAUS output, but later sections use data_clean
 
 # --- 0) Locate files by pattern (robust to missing extensions) ---
 lf <- list.files(in_dir, full.names = TRUE)
@@ -409,18 +411,18 @@ laus %>% filter(county_key %in% bad_keys) %>% distinct(county, county_key) %>% h
 
 
 
-# 1) 每县月份是否齐全（2014-10~2022-12 对 FAP 来说应该是起于 2014-10）
+# 1) Check if each county has complete months (2014-10~2022-12 for FAP should start from 2014-10)
 table_rows <- merged %>%
   count(county, year, month) %>%
   count(county, name = "n_months")
-summary(table_rows$n_months)  # 应该接近 96（2014-10 到 2022-12）或按你的 FAP窗口
+summary(table_rows$n_months)  # Should be close to 96 (2014-10 to 2022-12) or according to your FAP window
 
-# 2) 关键变量是否全为数值、是否有明显缺失
+# 2) Check if key variables are all numeric and if there are obvious missing values
 sapply(merged[, c("unemployment_rate","employment","unemployed","labor_force",
                   "fap_recipients","fap_cases","fap_payments")],
        function(x) c(class=class(x)[1], na=sum(is.na(x))))
 
-# 3) 建一个 ym，后续建模更方便
+# 3) Create a ym variable for easier modeling later
 merged <- merged %>% mutate(ym = year*100L + month)
 
 write_csv(merged %>% distinct(county_key, county_id, county),
@@ -831,17 +833,9 @@ message("✅ Saved merged monthly panel with ACS (annual lags): ", out_path)
 
 # --- Michigan ABAWD waiver coding (final, consistent with your county lists) ---
 
-library(dplyr)
-library(lubridate)
-library(readr)
-library(stringr)
-
 # Use the panel built above (FAP × LAUS × RUCC × SVI × ACS lags)
 data <- read_csv(file.path(in_clean, "panel_with_acs.csv"),
                  show_col_types = FALSE) %>%
-  mutate(county = str_squish(str_to_title(str_remove(county, "\\s*County\\b"))))
-
-data <- data %>%
   mutate(county = str_squish(str_to_title(str_remove(county, "\\s*County\\b")))) %>%
   filter(!county %in% c("X-Unassigned", "Unknown", "Unassigned", "Statewide", "Total")) %>%
   distinct(county, year, month, .keep_all = TRUE)
@@ -868,6 +862,10 @@ waived_2018_2019 <- c(
   "St. Joseph","Tuscola","Van Buren","Wayne","Wexford"
 )
 
+waived_2018_jan_jun <- waived_2018_2019
+waived_2018_jul_sep <- c("Wayne")
+waived_2018_oct_dec <- character(0)
+
 nonwaived_2018_2019 <- setdiff(unique(data$county), waived_2018_2019)
 
 waived_2020_feb_mar <- c(
@@ -891,8 +889,14 @@ out <- data %>%
       ym >= ymd("2017-01-01") & ym <= ymd("2017-12-01") &
         county %in% waived_2017 ~ 1L,
       
-      ym >= ymd("2018-01-01") & ym <= ymd("2018-12-01") &
-        county %in% waived_2018_2019 ~ 1L,
+      ym >= ymd("2018-01-01") & ym <= ymd("2018-06-01") &
+        county %in% waived_2018_jan_jun ~ 1L,
+      
+      ym >= ymd("2018-07-01") & ym <= ymd("2018-09-01") &
+        county %in% waived_2018_jul_sep ~ 1L,
+      
+      ym >= ymd("2018-10-01") & ym <= ymd("2018-12-01") &
+        county %in% waived_2018_oct_dec ~ 1L,
       
       ym >= ymd("2019-01-01") & ym <= ymd("2019-12-01") &
         county %in% waived_2018_2019 ~ 1L,
@@ -915,7 +919,9 @@ check <- out %>%
   mutate(expected = case_when(
     ym >= ymd("2016-01-01") & ym <= ymd("2016-12-01") ~ 83L,           # statewide
     ym >= ymd("2017-01-01") & ym <= ymd("2017-12-01") ~ 79L,
-    ym >= ymd("2018-01-01") & ym <= ymd("2018-12-01") ~ 69L,
+    ym >= ymd("2018-01-01") & ym <= ymd("2018-06-01") ~ 69L,
+    ym >= ymd("2018-07-01") & ym <= ymd("2018-09-01") ~ 1L,
+    ym >= ymd("2018-10-01") & ym <= ymd("2018-12-01") ~ 0L,
     ym >= ymd("2019-01-01") & ym <= ymd("2019-12-01") ~ 69L,
     ym >= ymd("2020-02-01") & ym <= ymd("2020-03-01") ~ 77L,
     ym >= ymd("2020-08-01") ~ 83L,
@@ -924,12 +930,12 @@ check <- out %>%
   mutate(ok = (is.na(expected) | n_waived == expected))
 
 print(head(check, 15))
-cat(sprintf("审计不匹配的月份：%d 个\n",
+cat(sprintf("Months with mismatched audit: %d\n",
             sum(!check$ok, na.rm = TRUE)))
 
-# 输出
+# Output
 write_csv(out, file.path(in_clean, "snap_laus_with_policy.csv"))
-cat("✅ 写出：data_clean/snap_laus_with_policy.csv\n")
+cat("✅ Saved: data_clean/snap_laus_with_policy.csv\n")
 
 
 
@@ -1026,6 +1032,16 @@ clean_county <- function(x) {
     str_to_title()
 }
 
+# Clean county names with period removal (for matching with lists)
+# This handles "St. Clair" vs "St Clair" mismatches
+clean_county2 <- function(x) {
+  x %>%
+    str_remove("\\s*County\\b") %>%
+    str_replace_all("\\.", "") %>%   # drop periods (St. Clair -> St Clair)
+    str_squish() %>%
+    str_to_title()
+}
+
 # Safe integer month-date
 make_ym <- function(y, m) make_date(as.integer(y), as.integer(m), 1)
 
@@ -1082,8 +1098,9 @@ waived_2020_feb_mar <- c(
   "Montmorency","Muskegon","Newaygo","Oceana","Ogemaw","Ontonagon","Osceola","Oscoda","Otsego","Presque Isle",
   "Roscommon","Saginaw","Sanilac","Schoolcraft","Shiawassee","St. Clair","Tuscola","Van Buren","Wayne","Wexford"
 )
-waived_2018_jan_jun <- setdiff(waived_2018_2019, "Wayne")
-waived_2018_jul_dec <- waived_2018_2019
+waived_2018_jan_jun <- waived_2018_2019
+waived_2018_jul_sep <- c("Wayne")
+waived_2018_oct_dec <- character(0)
 
 override_path <- file.path(root, "data_raw", "waiver_overrides_2018.csv")
 has_override  <- file.exists(override_path)
@@ -1095,7 +1112,8 @@ out <- data %>%
       ym >= ymd("2014-01-01") & ym <= ymd("2016-12-01") ~ 1L,
       ym >= ymd("2017-01-01") & ym <= ymd("2017-12-01") & county %in% waived_2017 ~ 1L,
       ym >= ymd("2018-01-01") & ym <= ymd("2018-06-01") & county %in% waived_2018_jan_jun ~ 1L,
-      ym >= ymd("2018-07-01") & ym <= ymd("2018-12-01") & county %in% waived_2018_jul_dec ~ 1L,
+      ym >= ymd("2018-07-01") & ym <= ymd("2018-09-01") & county %in% waived_2018_jul_sep ~ 1L,
+      ym >= ymd("2018-10-01") & ym <= ymd("2018-12-01") & county %in% waived_2018_oct_dec ~ 1L,
       ym >= ymd("2019-01-01") & ym <= ymd("2019-12-01") & county %in% waived_2018_2019 ~ 1L,
       ym >= ymd("2020-02-01") & ym <= ymd("2020-03-01") & county %in% waived_2020_feb_mar ~ 1L,
       ym >= ymd("2020-08-01") ~ 1L,
@@ -1154,25 +1172,136 @@ pop_18_49_col   <- resolve_col(panel0, POP_18_49_CANDIDATES, label = "population
 labor_force_col <- resolve_col(panel0, LABOR_FORCE_CANDS,    label = "labor force",        required = FALSE)
 
 # =========================
-# 5) G (first enforced month in 2017–2019)
+# 5) G (enforcement cohort: Approach A - direct construction)
 # =========================
-G_table <- panel0 %>%
+# Approach A: Four cohorts based on reinstatement timing
+# - 2017-01 cohort (4 counties): Not in waived_2017 list
+# - 2018-01 cohort (10 counties): In waived_2017 but removed from waived_2018_2019
+# - 2018-07 cohort (68 counties): In waived_2018_2019 (waived through 6/30), excluding Wayne
+# - 2018-10 cohort (1 county): Wayne (waived through 9/30)
+
+# Helper: Convert year-month to integer time index (0-based month)
+to_t <- function(y, m) as.integer(y) * 12L + (as.integer(m) - 1L)
+
+G_2017_01 <- to_t(2017, 1)
+G_2018_01 <- to_t(2018, 1)
+G_2018_07 <- to_t(2018, 7)
+G_2018_10 <- to_t(2018, 10)
+
+# Standardize county names (remove periods for matching)
+panel0_clean <- panel0 %>%
+  mutate(county_clean = clean_county2(county))
+
+# Standardize waived lists (remove periods)
+waived_2017_clean <- clean_county2(waived_2017)
+waived_2018_2019_clean <- clean_county2(waived_2018_2019)
+
+# Define cohorts based on document-based lists
+# 2017-01 cohort: Not in waived_2017 (4 counties)
+nonwaived_2017 <- setdiff(unique(panel0_clean$county_clean), waived_2017_clean)
+
+# 2018-01 cohort: In waived_2017 but removed from waived_2018_2019 (10 counties)
+removed_in_2018 <- setdiff(waived_2017_clean, waived_2018_2019_clean)
+
+# 2018-07 cohort: In waived_2018_2019 but not Wayne, and not already enforced since 2017
+phasein_2018_07 <- setdiff(
+  setdiff(waived_2018_2019_clean, "Wayne"),
+  nonwaived_2017  # Exclude those already enforced since 2017
+)
+# Note: removed_in_2018 is already excluded from waived_2018_2019_clean
+
+# Construct G_int directly from cohort membership
+G_table <- panel0_clean %>%
   mutate(id_key = if (has_fips) county_id else county) %>%
-  group_by(id_key) %>%
-  summarise(
-    G_date = {
-      g_first <- suppressWarnings(min(
-        ym_date[enforced == 1 &
-                  ym_date >= ymd("2017-01-01") &
-                  ym_date <= ymd("2019-12-01")],
-        na.rm = TRUE
-      ))
-      if (!is.finite(g_first)) NA_Date_ else g_first
-    },
-    .groups = "drop"
+  distinct(id_key, county_clean) %>%
+  mutate(
+    G_int = case_when(
+      county_clean %in% nonwaived_2017    ~ G_2017_01,
+      county_clean %in% removed_in_2018    ~ G_2018_01,
+      county_clean == "Wayne"              ~ G_2018_10,
+      county_clean %in% phasein_2018_07   ~ G_2018_07,
+      TRUE                                ~ NA_integer_  # Should not happen if lists are correct
+    ),
+    G = ifelse(is.na(G_int), "0",
+               sprintf("%04d-%02d", G_int %/% 12L, (G_int %% 12L) + 1L))
   ) %>%
-  mutate(G = ifelse(is.na(G_date), "0", format(G_date, "%Y-%m"))) %>%
-  select(id_key, G)
+  select(id_key, G, G_int)
+
+# Sanity check: Cohort sizes should be 4 / 10 / 68 / 1
+cat("\n[Sanity Check] Cohort sizes (by G_int):\n")
+cohort_check <- G_table %>%
+  filter(G_int > 0) %>%
+  count(G_int, name = "n_counties") %>%
+  arrange(G_int)
+print(cohort_check)
+
+expected_cohorts <- data.frame(
+  G_int = c(G_2017_01, G_2018_01, G_2018_07, G_2018_10),
+  expected = c(4L, 10L, 68L, 1L),
+  label = c("2017-01 (nonwaived)", "2018-01 (removed)", "2018-07 (phase-in)", "2018-10 (Wayne)")
+)
+
+cohort_check <- cohort_check %>%
+  left_join(expected_cohorts, by = "G_int") %>%
+  mutate(match = n_counties == expected)
+
+if (all(cohort_check$match, na.rm = TRUE)) {
+  cat("✅ All cohort sizes match expected values.\n")
+} else {
+  cat("⚠️  WARNING: Cohort sizes do not match expected values:\n")
+  print(cohort_check)
+}
+
+# Sanity check: Treated counts at key months
+cat("\n[Sanity Check] Treated counts at key months:\n")
+# Determine join key based on what's available in panel0
+join_key <- if ("county_id" %in% names(panel0)) "county_id" else "county"
+treated_check <- panel0 %>%
+  mutate(id_key = if ("county_id" %in% names(panel0)) county_id else county) %>%
+  left_join(G_table %>% select(id_key, G_int), by = "id_key") %>%
+  mutate(
+    treated = ifelse(!is.na(G_int) & G_int > 0 &
+                       ym_date >= make_date(G_int %/% 12L, (G_int %% 12L) + 1L, 1),
+                     1L, 0L)
+  ) %>%
+  filter(ym_date %in% as.Date(c("2016-12-01", "2017-01-01", "2018-01-01", "2018-07-01", "2018-10-01", "2019-01-01"))) %>%
+  group_by(ym_date) %>%
+  summarise(n_treated = sum(treated, na.rm = TRUE), .groups = "drop") %>%
+  arrange(ym_date)
+print(treated_check)
+
+expected_treated <- data.frame(
+  ym_date = as.Date(c("2016-12-01", "2017-01-01", "2018-01-01", "2018-07-01", "2018-10-01", "2019-01-01")),
+  expected = c(0L, 4L, 14L, 82L, 83L, 83L)
+)
+
+treated_check <- treated_check %>%
+  left_join(expected_treated, by = "ym_date") %>%
+  mutate(match = n_treated == expected)
+
+if (all(treated_check$match, na.rm = TRUE)) {
+  cat("✅ All treated counts match expected values.\n")
+} else {
+  cat("⚠️  WARNING: Treated counts do not match expected values:\n")
+  print(treated_check)
+}
+
+# Quick check: County name matching
+cat("\n[Sanity Check] County name matching:\n")
+data_counties <- sort(unique(panel0_clean$county_clean))
+mi_83_clean <- clean_county2(mi_83)
+extra_in_data <- setdiff(data_counties, mi_83_clean)
+missing_from_data <- setdiff(mi_83_clean, data_counties)
+if (length(extra_in_data) == 0 && length(missing_from_data) == 0) {
+  cat("✅ All 83 Michigan counties matched correctly.\n")
+} else {
+  if (length(extra_in_data) > 0) {
+    cat("⚠️  Extra counties in data:", paste(extra_in_data, collapse = ", "), "\n")
+  }
+  if (length(missing_from_data) > 0) {
+    cat("⚠️  Missing counties:", paste(missing_from_data, collapse = ", "), "\n")
+  }
+}
 
 # =========================
 # 6) Build outcomes and attach G
@@ -1213,11 +1342,18 @@ panel <- panel0 %>%
     # log(x): use when x is strictly > 0 (clean percent-change interpretation)
     y_log_raw = ifelse(!is.na(y_raw) & y_raw > 0, log(y_raw), NA_real_),
     y_log_per1k_total = ifelse(!is.na(y_per1k_total) & y_per1k_total > 0, log(y_per1k_total), NA_real_),
-    y_log_per1k_18_49 = ifelse(!is.na(y_per1k_18_49) & y_per1k_18_49 > 0, log(y_per1k_18_49), NA_real_),
-    y_log_per100_lf   = ifelse(!is.na(y_per100_lf)   & y_per100_lf   > 0, log(y_per100_lf), NA_real_)
+    y_log_per1k_18_49 = if (!is.na(pop_18_49_col)) {
+      ifelse(!is.na(y_per1k_18_49) & y_per1k_18_49 > 0, log(y_per1k_18_49), NA_real_)
+    } else NA_real_,
+    y_log_per100_lf   = if (!is.na(labor_force_col)) {
+      ifelse(!is.na(y_per100_lf) & y_per100_lf > 0, log(y_per100_lf), NA_real_)
+    } else NA_real_
   ) %>%
-  left_join(G_table, by = c("id" = "id_key")) %>%
-  mutate(G = ifelse(is.na(G), "0", G)) %>%
+  left_join(G_table %>% select(id_key, G, G_int), by = c("id" = "id_key")) %>%
+  mutate(
+    G = ifelse(is.na(G), "0", G),
+    G_int = ifelse(is.na(G_int), 0L, G_int)
+  ) %>%
   arrange(id, date)
 
 # Exit-based outcomes (month-over-month within county)
@@ -1308,4 +1444,8 @@ outcomes_wide <- panel %>%
     y_log1p_per100_lf
   )
 write_csv(outcomes_wide, out_outcomeswide)
+
+# Write full panel with G (all columns)
+write_csv(panel, out_panelG)
+message("✅ Saved full panel with G: ", out_panelG)
 
