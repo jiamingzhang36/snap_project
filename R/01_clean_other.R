@@ -13,6 +13,18 @@ dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Note: out_dir is set to data_raw for LAUS output, but later sections use data_clean
 
+# Canonical 83 MI counties (used throughout)
+mi_83 <- c(
+  "Alcona","Alger","Allegan","Alpena","Antrim","Arenac","Baraga","Barry","Bay","Benzie","Berrien","Branch",
+  "Calhoun","Cass","Charlevoix","Cheboygan","Chippewa","Clare","Clinton","Crawford","Delta","Dickinson","Eaton",
+  "Emmet","Genesee","Gladwin","Gogebic","Grand Traverse","Gratiot","Hillsdale","Houghton","Huron","Ingham",
+  "Ionia","Iosco","Iron","Isabella","Jackson","Kalamazoo","Kalkaska","Kent","Keweenaw","Lake","Lapeer","Leelanau",
+  "Lenawee","Livingston","Luce","Mackinac","Macomb","Manistee","Marquette","Mason","Mecosta","Menominee","Midland",
+  "Missaukee","Monroe","Montcalm","Montmorency","Muskegon","Newaygo","Oakland","Oceana","Ogemaw","Ontonagon",
+  "Osceola","Oscoda","Otsego","Ottawa","Presque Isle","Roscommon","Saginaw","St. Clair","St. Joseph","Sanilac",
+  "Schoolcraft","Shiawassee","Tuscola","Van Buren","Washtenaw","Wayne","Wexford"
+)
+
 # --- 0) Locate files by pattern (robust to missing extensions) ---
 lf <- list.files(in_dir, full.names = TRUE)
 path_data    <- lf[grepl("^.*/la\\.data.*County$", lf)]
@@ -868,6 +880,17 @@ waived_2018_oct_dec <- character(0)
 
 nonwaived_2018_2019 <- setdiff(unique(data$county), waived_2018_2019)
 
+# Document-based coverage sets
+cover_2016_statewide <- mi_83
+cover_2017_79        <- waived_2017
+cover_2018_2019_69   <- waived_2018_2019
+
+# Cohort-defining sets implied by the documents
+noncovered_2017_4   <- setdiff(cover_2016_statewide, cover_2017_79)
+removed_2018_01_10     <- setdiff(cover_2017_79, cover_2018_2019_69)
+phasein_2018_07_68  <- setdiff(cover_2018_2019_69, "Wayne")
+phasein_2018_10_1   <- "Wayne"
+
 waived_2020_feb_mar <- c(
   "Alcona","Alger","Alpena","Antrim","Arenac","Baraga","Barry","Bay","Benzie","Berrien","Branch","Calhoun","Cass",
   "Charlevoix","Cheboygan","Chippewa","Clare","Clinton","Crawford","Delta","Dickinson","Eaton","Emmet","Genesee",
@@ -882,56 +905,79 @@ nonwaived_2020_feb_mar <- setdiff(unique(data$county), waived_2020_feb_mar)
 
 out <- data %>%
   mutate(
-    ym = make_date(year, month, 1),
-    waived = case_when(
+    ym = make_date(year, month, 1)
+  ) %>%
+  filter(ym <= ymd("2019-12-01")) %>%
+  mutate(
+    # (A) waiver_covered: approval area indicator (document-based)
+    waiver_covered = case_when(
       ym >= ymd("2016-01-01") & ym <= ymd("2016-12-01") ~ 1L,
-      
-      ym >= ymd("2017-01-01") & ym <= ymd("2017-12-01") &
-        county %in% waived_2017 ~ 1L,
-      
-      ym >= ymd("2018-01-01") & ym <= ymd("2018-06-01") &
-        county %in% waived_2018_jan_jun ~ 1L,
-      
-      ym >= ymd("2018-07-01") & ym <= ymd("2018-09-01") &
-        county %in% waived_2018_jul_sep ~ 1L,
-      
-      ym >= ymd("2018-10-01") & ym <= ymd("2018-12-01") &
-        county %in% waived_2018_oct_dec ~ 1L,
-      
-      ym >= ymd("2019-01-01") & ym <= ymd("2019-12-01") &
-        county %in% waived_2018_2019 ~ 1L,
-      
-      ym >= ymd("2020-02-01") & ym <= ymd("2020-03-01") &
-        county %in% waived_2020_feb_mar ~ 1L,
-      
-      ym >= ymd("2020-08-01") ~ 1L,
-      
+      ym >= ymd("2017-01-01") & ym <= ymd("2017-12-01") ~ as.integer(county %in% cover_2017_79),
+      ym >= ymd("2018-01-01") & ym <= ymd("2019-12-01") ~ as.integer(county %in% cover_2018_2019_69),
+      TRUE ~ NA_integer_
+    ),
+
+    # (B) waiver_exempt_proxy: "still fully waived" proxy from the letters (descriptive only)
+    waiver_exempt_proxy = case_when(
+      ym >= ymd("2016-01-01") & ym <= ymd("2016-12-01") ~ 1L,
+      ym >= ymd("2017-01-01") & ym <= ymd("2017-12-01") ~ as.integer(county %in% cover_2017_79),
+      ym >= ymd("2018-01-01") & ym <= ymd("2018-06-01") ~ as.integer(county %in% cover_2018_2019_69),
+      ym >= ymd("2018-07-01") & ym <= ymd("2018-09-01") ~ if_else(county == "Wayne", 1L, NA_integer_),
+      ym >= ymd("2018-10-01") & ym <= ymd("2019-12-01") ~ NA_integer_,
+      TRUE ~ NA_integer_
+    ),
+
+    # (C) time_limit_proxy: phase-in timing proxy (use for DID)
+    time_limit_proxy = case_when(
+      ym < ymd("2017-01-01") ~ 0L,
+      county %in% noncovered_2017_4   & ym >= ymd("2017-01-01") ~ 1L,
+      county %in% removed_2018_01_10     & ym >= ymd("2018-01-01") ~ 1L,
+      county %in% phasein_2018_07_68  & ym >= ymd("2018-07-01") ~ 1L,
+      county %in% phasein_2018_10_1   & ym >= ymd("2018-10-01") ~ 1L,
       TRUE ~ 0L
     ),
-    enforced = 1L - waived
+    # Keep an "enforced" alias for compatibility, but do not define as 1 - waiver
+    enforced = time_limit_proxy
   )
 
-check <- out %>%
-  filter(year %in% 2016:2020) %>%
-  group_by(year, month) %>%
-  summarise(n_waived = sum(waived, na.rm = TRUE), .groups = "drop") %>%
-  mutate(ym = make_date(year, month, 1)) %>%
+# =========================
+# Audit 1: approval coverage counts (waiver_covered)
+# =========================
+check_cov <- out %>%
+  group_by(ym) %>%
+  summarise(n_covered = sum(waiver_covered, na.rm = TRUE), .groups = "drop") %>%
   mutate(expected = case_when(
-    ym >= ymd("2016-01-01") & ym <= ymd("2016-12-01") ~ 83L,           # statewide
+    ym >= ymd("2016-01-01") & ym <= ymd("2016-12-01") ~ 83L,
     ym >= ymd("2017-01-01") & ym <= ymd("2017-12-01") ~ 79L,
-    ym >= ymd("2018-01-01") & ym <= ymd("2018-06-01") ~ 69L,
-    ym >= ymd("2018-07-01") & ym <= ymd("2018-09-01") ~ 1L,
-    ym >= ymd("2018-10-01") & ym <= ymd("2018-12-01") ~ 0L,
-    ym >= ymd("2019-01-01") & ym <= ymd("2019-12-01") ~ 69L,
-    ym >= ymd("2020-02-01") & ym <= ymd("2020-03-01") ~ 77L,
-    ym >= ymd("2020-08-01") ~ 83L,
+    ym >= ymd("2018-01-01") & ym <= ymd("2019-12-01") ~ 69L,
     TRUE ~ NA_integer_
   )) %>%
-  mutate(ok = (is.na(expected) | n_waived == expected))
+  mutate(ok = is.na(expected) | n_covered == expected)
 
-print(head(check, 15))
-cat(sprintf("Months with mismatched audit: %d\n",
-            sum(!check$ok, na.rm = TRUE)))
+print(check_cov %>% filter(!ok))
+cat(sprintf("Coverage months mismatched: %d\n",
+            sum(!check_cov$ok, na.rm = TRUE)))
+
+# =========================
+# Audit 2: treated counts at key months (time_limit_proxy)
+# =========================
+key_months <- as.Date(c("2016-12-01","2017-01-01","2018-01-01",
+                        "2018-07-01","2018-10-01","2019-01-01"))
+check_treat <- out %>%
+  filter(ym %in% key_months) %>%
+  group_by(ym) %>%
+  summarise(n_treated_proxy = sum(time_limit_proxy, na.rm = TRUE), .groups = "drop") %>%
+  left_join(
+    tibble::tibble(
+      ym = key_months,
+      expected = c(0L, 4L, 14L, 82L, 83L, 83L)
+    ),
+    by = "ym"
+  ) %>%
+  mutate(ok = n_treated_proxy == expected)
+
+print(check_treat)
+if (!all(check_treat$ok)) warning("Treated-proxy counts do NOT match expected at key months.")
 
 # Output
 write_csv(out, file.path(in_clean, "snap_laus_with_policy.csv"))
@@ -968,18 +1014,6 @@ stopifnot(file.exists(in_path))
 
 # Choose the outcome to export in panel_input.csv
 Y_MODE <- "log1p_per1k_18_49"
-
-# Canonical 83 MI counties
-mi_83 <- c(
-  "Alcona","Alger","Allegan","Alpena","Antrim","Arenac","Baraga","Barry","Bay","Benzie","Berrien","Branch",
-  "Calhoun","Cass","Charlevoix","Cheboygan","Chippewa","Clare","Clinton","Crawford","Delta","Dickinson","Eaton",
-  "Emmet","Genesee","Gladwin","Gogebic","Grand Traverse","Gratiot","Hillsdale","Houghton","Huron","Ingham",
-  "Ionia","Iosco","Iron","Isabella","Jackson","Kalamazoo","Kalkaska","Kent","Keweenaw","Lake","Lapeer","Leelanau",
-  "Lenawee","Livingston","Luce","Mackinac","Macomb","Manistee","Marquette","Mason","Mecosta","Menominee","Midland",
-  "Missaukee","Monroe","Montcalm","Montmorency","Muskegon","Newaygo","Oakland","Oceana","Ogemaw","Ontonagon",
-  "Osceola","Oscoda","Otsego","Ottawa","Presque Isle","Roscommon","Saginaw","St. Clair","St. Joseph","Sanilac",
-  "Schoolcraft","Shiawassee","Tuscola","Van Buren","Washtenaw","Wayne","Wexford"
-)
 
 # =========================
 # 1) Helpers (robustness)
@@ -1068,7 +1102,7 @@ if (length(missing_from_data)) message("Missing from data: ", paste(missing_from
 data <- data0 %>% filter(county %in% mi_83)
 
 # =========================
-# 3) Waiver coding (2014–2020)
+# 3) Policy coding (2014–2019 only, document-based)
 # =========================
 waived_2017 <- c(
   "Alcona","Alger","Allegan","Alpena","Antrim","Arenac","Baraga","Barry","Bay","Benzie","Berrien","Branch",
@@ -1089,48 +1123,97 @@ waived_2018_2019 <- c(
   "Oscoda","Otsego","Presque Isle","Roscommon","Saginaw","Sanilac","Schoolcraft","Shiawassee","St. Clair",
   "St. Joseph","Tuscola","Van Buren","Wayne","Wexford"
 )
-waived_2020_feb_mar <- c(
-  "Alcona","Alger","Alpena","Antrim","Arenac","Baraga","Barry","Bay","Benzie","Berrien","Branch","Calhoun","Cass",
-  "Charlevoix","Cheboygan","Chippewa","Clare","Clinton","Crawford","Delta","Dickinson","Eaton","Emmet","Genesee",
-  "Gladwin","Gogebic","Grand Traverse","Gratiot","Hillsdale","Houghton","Huron","Ingham","Ionia","Iosco","Iron",
-  "Isabella","Jackson","Kalamazoo","Kalkaska","Keweenaw","Lake","Lapeer","Leelanau","Lenawee","Luce","Mackinac",
-  "Macomb","Manistee","Marquette","Mason","Mecosta","Menominee","Midland","Missaukee","Monroe","Montcalm",
-  "Montmorency","Muskegon","Newaygo","Oceana","Ogemaw","Ontonagon","Osceola","Oscoda","Otsego","Presque Isle",
-  "Roscommon","Saginaw","Sanilac","Schoolcraft","Shiawassee","St. Clair","Tuscola","Van Buren","Wayne","Wexford"
-)
 waived_2018_jan_jun <- waived_2018_2019
 waived_2018_jul_sep <- c("Wayne")
 waived_2018_oct_dec <- character(0)
 
+# Document-based coverage sets
+cover_2016_statewide <- mi_83
+cover_2017_79        <- waived_2017
+cover_2018_2019_69   <- waived_2018_2019
+
+# Cohort-defining sets implied by the documents
+noncovered_2017_4   <- setdiff(cover_2016_statewide, cover_2017_79)
+removed_2018_01_10     <- setdiff(cover_2017_79, cover_2018_2019_69)
+phasein_2018_07_68  <- setdiff(cover_2018_2019_69, "Wayne")
+phasein_2018_10_1   <- "Wayne"
+
 override_path <- file.path(root, "data_raw", "waiver_overrides_2018.csv")
 has_override  <- file.exists(override_path)
-if (has_override) message("Using monthly overrides from: ", override_path)
+if (has_override) message("Ignoring monthly overrides (policy-only coding): ", override_path)
 
 out <- data %>%
+  filter(ym <= ymd("2019-12-01")) %>%
   mutate(
-    waived = case_when(
-      ym >= ymd("2014-01-01") & ym <= ymd("2016-12-01") ~ 1L,
-      ym >= ymd("2017-01-01") & ym <= ymd("2017-12-01") & county %in% waived_2017 ~ 1L,
-      ym >= ymd("2018-01-01") & ym <= ymd("2018-06-01") & county %in% waived_2018_jan_jun ~ 1L,
-      ym >= ymd("2018-07-01") & ym <= ymd("2018-09-01") & county %in% waived_2018_jul_sep ~ 1L,
-      ym >= ymd("2018-10-01") & ym <= ymd("2018-12-01") & county %in% waived_2018_oct_dec ~ 1L,
-      ym >= ymd("2019-01-01") & ym <= ymd("2019-12-01") & county %in% waived_2018_2019 ~ 1L,
-      ym >= ymd("2020-02-01") & ym <= ymd("2020-03-01") & county %in% waived_2020_feb_mar ~ 1L,
-      ym >= ymd("2020-08-01") ~ 1L,
+    # (A) waiver_covered: approval area indicator (document-based)
+    waiver_covered = case_when(
+      ym >= ymd("2016-01-01") & ym <= ymd("2016-12-01") ~ 1L,
+      ym >= ymd("2017-01-01") & ym <= ymd("2017-12-01") ~ as.integer(county %in% cover_2017_79),
+      ym >= ymd("2018-01-01") & ym <= ymd("2019-12-01") ~ as.integer(county %in% cover_2018_2019_69),
+      TRUE ~ NA_integer_
+    ),
+
+    # (B) waiver_exempt_proxy: "still fully waived" proxy from the letters (descriptive only)
+    waiver_exempt_proxy = case_when(
+      ym >= ymd("2016-01-01") & ym <= ymd("2016-12-01") ~ 1L,
+      ym >= ymd("2017-01-01") & ym <= ymd("2017-12-01") ~ as.integer(county %in% cover_2017_79),
+      ym >= ymd("2018-01-01") & ym <= ymd("2018-06-01") ~ as.integer(county %in% cover_2018_2019_69),
+      ym >= ymd("2018-07-01") & ym <= ymd("2018-09-01") ~ if_else(county == "Wayne", 1L, NA_integer_),
+      ym >= ymd("2018-10-01") & ym <= ymd("2019-12-01") ~ NA_integer_,
+      TRUE ~ NA_integer_
+    ),
+
+    # (C) time_limit_proxy: phase-in timing proxy (use for DID)
+    time_limit_proxy = case_when(
+      ym < ymd("2017-01-01") ~ 0L,
+      county %in% noncovered_2017_4   & ym >= ymd("2017-01-01") ~ 1L,
+      county %in% removed_2018_01_10     & ym >= ymd("2018-01-01") ~ 1L,
+      county %in% phasein_2018_07_68  & ym >= ymd("2018-07-01") ~ 1L,
+      county %in% phasein_2018_10_1   & ym >= ymd("2018-10-01") ~ 1L,
       TRUE ~ 0L
     ),
-    enforced = 1L - waived
+    # Keep an "enforced" alias for compatibility, but do not define as 1 - waiver
+    enforced = time_limit_proxy
   )
 
-if (has_override) {
-  ov <- read_csv(override_path, show_col_types = FALSE) %>%
-    mutate(county = clean_county(county))
-  out <- out %>%
-    left_join(ov %>% mutate(flag_ov = 1L), by = c("year","month","county")) %>%
-    mutate(waived = ifelse(!is.na(flag_ov), 1L, waived),
-           enforced = 1L - waived) %>%
-    select(-flag_ov)
-}
+# =========================
+# Audit 1: approval coverage counts (waiver_covered)
+# =========================
+check_cov <- out %>%
+  group_by(ym) %>%
+  summarise(n_covered = sum(waiver_covered, na.rm = TRUE), .groups = "drop") %>%
+  mutate(expected = case_when(
+    ym >= ymd("2016-01-01") & ym <= ymd("2016-12-01") ~ 83L,
+    ym >= ymd("2017-01-01") & ym <= ymd("2017-12-01") ~ 79L,
+    ym >= ymd("2018-01-01") & ym <= ymd("2019-12-01") ~ 69L,
+    TRUE ~ NA_integer_
+  )) %>%
+  mutate(ok = is.na(expected) | n_covered == expected)
+
+print(check_cov %>% filter(!ok))
+cat(sprintf("Coverage months mismatched: %d\n",
+            sum(!check_cov$ok, na.rm = TRUE)))
+
+# =========================
+# Audit 2: treated counts at key months (time_limit_proxy)
+# =========================
+key_months <- as.Date(c("2016-12-01","2017-01-01","2018-01-01",
+                        "2018-07-01","2018-10-01","2019-01-01"))
+check_treat <- out %>%
+  filter(ym %in% key_months) %>%
+  group_by(ym) %>%
+  summarise(n_treated_proxy = sum(time_limit_proxy, na.rm = TRUE), .groups = "drop") %>%
+  left_join(
+    tibble::tibble(
+      ym = key_months,
+      expected = c(0L, 4L, 14L, 82L, 83L, 83L)
+    ),
+    by = "ym"
+  ) %>%
+  mutate(ok = n_treated_proxy == expected)
+
+print(check_treat)
+if (!all(check_treat$ok)) warning("Treated-proxy counts do NOT match expected at key months.")
 
 write_csv(out, out_policy)
 message("Wrote policy-coded monthly: ", out_policy)
@@ -1172,60 +1255,39 @@ pop_18_49_col   <- resolve_col(panel0, POP_18_49_CANDIDATES, label = "population
 labor_force_col <- resolve_col(panel0, LABOR_FORCE_CANDS,    label = "labor force",        required = FALSE)
 
 # =========================
-# 5) G (enforcement cohort: Approach A - direct construction)
+# 5) G (cohort timing from time_limit_proxy)
 # =========================
-# Approach A: Four cohorts based on reinstatement timing
-# - 2017-01 cohort (4 counties): Not in waived_2017 list
-# - 2018-01 cohort (10 counties): In waived_2017 but removed from waived_2018_2019
-# - 2018-07 cohort (68 counties): In waived_2018_2019 (waived through 6/30), excluding Wayne
-# - 2018-10 cohort (1 county): Wayne (waived through 9/30)
-
 # Helper: Convert year-month to integer time index (0-based month)
 to_t <- function(y, m) as.integer(y) * 12L + (as.integer(m) - 1L)
 
+# Standardize county names (remove periods for matching in checks)
+panel0_clean <- panel0 %>%
+  mutate(county_clean = clean_county2(county))
+
+# Derive cohort month from first time_limit_proxy == 1
+G_table <- panel0_clean %>%
+  mutate(id_key = if (has_fips) county_id else county) %>%
+  group_by(id_key) %>%
+  summarise(
+    G_date = if (any(time_limit_proxy == 1L, na.rm = TRUE)) {
+      min(ym_date[time_limit_proxy == 1L])
+    } else {
+      as.Date(NA)
+    },
+    .groups = "drop"
+  ) %>%
+  mutate(
+    G_int = ifelse(is.na(G_date), NA_integer_,
+                   to_t(lubridate::year(G_date), lubridate::month(G_date))),
+    G = ifelse(is.na(G_date), "0", format(G_date, "%Y-%m"))
+  ) %>%
+  select(id_key, G, G_int)
+
+# Expected cohort months (for sanity checks)
 G_2017_01 <- to_t(2017, 1)
 G_2018_01 <- to_t(2018, 1)
 G_2018_07 <- to_t(2018, 7)
 G_2018_10 <- to_t(2018, 10)
-
-# Standardize county names (remove periods for matching)
-panel0_clean <- panel0 %>%
-  mutate(county_clean = clean_county2(county))
-
-# Standardize waived lists (remove periods)
-waived_2017_clean <- clean_county2(waived_2017)
-waived_2018_2019_clean <- clean_county2(waived_2018_2019)
-
-# Define cohorts based on document-based lists
-# 2017-01 cohort: Not in waived_2017 (4 counties)
-nonwaived_2017 <- setdiff(unique(panel0_clean$county_clean), waived_2017_clean)
-
-# 2018-01 cohort: In waived_2017 but removed from waived_2018_2019 (10 counties)
-removed_in_2018 <- setdiff(waived_2017_clean, waived_2018_2019_clean)
-
-# 2018-07 cohort: In waived_2018_2019 but not Wayne, and not already enforced since 2017
-phasein_2018_07 <- setdiff(
-  setdiff(waived_2018_2019_clean, "Wayne"),
-  nonwaived_2017  # Exclude those already enforced since 2017
-)
-# Note: removed_in_2018 is already excluded from waived_2018_2019_clean
-
-# Construct G_int directly from cohort membership
-G_table <- panel0_clean %>%
-  mutate(id_key = if (has_fips) county_id else county) %>%
-  distinct(id_key, county_clean) %>%
-  mutate(
-    G_int = case_when(
-      county_clean %in% nonwaived_2017    ~ G_2017_01,
-      county_clean %in% removed_in_2018    ~ G_2018_01,
-      county_clean == "Wayne"              ~ G_2018_10,
-      county_clean %in% phasein_2018_07   ~ G_2018_07,
-      TRUE                                ~ NA_integer_  # Should not happen if lists are correct
-    ),
-    G = ifelse(is.na(G_int), "0",
-               sprintf("%04d-%02d", G_int %/% 12L, (G_int %% 12L) + 1L))
-  ) %>%
-  select(id_key, G, G_int)
 
 # Sanity check: Cohort sizes should be 4 / 10 / 68 / 1
 cat("\n[Sanity Check] Cohort sizes (by G_int):\n")

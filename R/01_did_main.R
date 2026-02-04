@@ -1,10 +1,15 @@
 ############################################################
-# Main DiD Analysis: CS + Sun-Abraham + Imputation + Stacked
-# ABAWD Enforcement and SNAP Participation
+# DiD Analysis: Early ABAWD Enforcement Effect on SNAP
 #
-# Design: Main CS (Ant=2) + Alternative estimators
-# Main estimand: Post 1-3 month average (so 2018-07 cohort contributes)
-# NOTE: Post 1-6 only covers early cohorts due to Michigan-only design limits
+# IDENTIFICATION STRATEGY:
+# - Sample trimmed to 2018-06 (before 68-county expansion)
+# - Treated cohorts: 2017-01 (4 counties), 2018-01 (10 counties)
+# - Controls: 69 counties not yet treated through June 2018
+#   (including 68 that would be treated in July + Wayne in Oct)
+# - This avoids control exhaustion and monotone-adoption issues
+#
+# Main estimand: Post 1-5 month average ATT (anticipation = 2)
+# (2018-01 cohort can contribute through June 2018 = 5 post months)
 ############################################################
 
 suppressPackageStartupMessages({
@@ -15,1115 +20,610 @@ suppressPackageStartupMessages({
   library(fixest)
   library(ggplot2)
   library(tidyr)
-  library(tibble)  # For tibble() function
-  library(didimputation)  # CRAN package for BJS imputation
 })
 
-# Set seed for reproducibility
-set.seed(123)
+SEED <- 123
+set.seed(SEED)
+# Set to FALSE to inspect warnings
+SUPPRESS_WARNINGS <- TRUE
+# Bootstrap iterations for CS inference
+BOOT_ITERS_FAST <- 199
+BOOT_ITERS_FINAL <- 999
+BOOT_ITERS <- BOOT_ITERS_FAST  # switch to BOOT_ITERS_FINAL for final tables
 
-#############################
-# Setup
-#############################
-
-root   <- "/Users/jiamingzhang/Desktop/snap_project"
-outdir <- file.path(root, "outputs", "step1_did")
-infile <- file.path(root, "data_clean", "panel_with_G.csv")
-
-if (!dir.exists(outdir)) dir.create(outdir, recursive = TRUE)
-stopifnot(file.exists(infile))
-
-panel_raw <- read_csv(infile, show_col_types = FALSE)
-
-############################################################
-# Helper Functions
-############################################################
-
-# Build analysis dataframe
-build_df <- function(panel_raw, 
-                     y_col = "y_per1k_18_49",
-                     start_date = as.Date("2014-01-01"),
-                     end_date   = as.Date("2019-12-01"),
-                     weight_col = NULL) {
-  
-  df <- panel_raw %>%
-    mutate(
-      date = as.Date(date),
-      t    = year(date) * 12L + (month(date) - 1L),
-      id_num = as.integer(factor(id)),
-      G_int = case_when(
-        is.na(G) | G == "0" ~ 0L,
-        TRUE ~ {
-          yy <- as.integer(substr(as.character(G), 1, 4))
-          mm <- as.integer(substr(as.character(G), 6, 7))
-          ifelse(is.na(yy) | is.na(mm), 0L, yy * 12L + (mm - 1L))
-        }
-      ),
-      unemployment_rate = as.numeric(unemployment_rate),
-      log_lf = log1p(as.numeric(labor_force)),
-      pop_1849 = as.numeric(population_18_49),
-      Y = log1p(as.numeric(.data[[y_col]]))
-    ) %>%
-    filter(date >= start_date, date <= end_date) %>%
-    filter(is.finite(Y), !is.na(Y)) %>%
-    filter(complete.cases(unemployment_rate, log_lf))
-  
-  # Add weights if specified
-  if (!is.null(weight_col) && weight_col %in% names(panel_raw)) {
-    df <- df %>% mutate(weight = as.numeric(.data[[weight_col]]))
-  } else if (!is.null(weight_col) && weight_col == "pop_1849") {
-    df <- df %>% mutate(weight = pop_1849)
+maybe_suppress <- function(expr) {
+  if (SUPPRESS_WARNINGS) {
+    suppressWarnings(eval(substitute(expr), parent.frame()))
   } else {
-    df <- df %>% mutate(weight = 1)
+    eval(substitute(expr), parent.frame())
+  }
+}
+
+# Paths
+datadir <- "data_clean"
+outdir  <- "outputs/step1_did"
+dir.create(outdir, showWarnings = FALSE, recursive = TRUE)
+
+# Load data
+panel_raw <- read_csv(file.path(datadir, "panel_with_G.csv"), show_col_types = FALSE)
+
+############################################################
+# HELPER FUNCTIONS
+############################################################
+
+# Build analysis dataframe with trimming
+build_df <- function(data, y_col, start_date = as.Date("2014-01-01"), 
+
+                     end_date = as.Date("2018-06-01")) {
+  
+  df <- data %>%
+    mutate(
+      date = as.Date(paste0(year, "-", sprintf("%02d", month), "-01")),
+      t = year * 12L + (month - 1L),
+      id_num = as.integer(factor(county)),
+      Y = .data[[y_col]]
+    ) %>%
+    filter(date >= start_date, date <= end_date, !is.na(Y))
+  
+  # Use G_int from file; set to 0 if missing
+  if ("G_int" %in% names(df)) {
+    df <- df %>% mutate(G_int = as.integer(ifelse(is.na(G_int), 0L, G_int)))
+  } else {
+    df <- df %>% mutate(G_int = 0L)
   }
   
-  cat(sprintf("[build] Rows: %d | Units: %d | Treated: %s\n",
-              nrow(df), n_distinct(df$id_num), any(df$G_int > 0)))
+  # Recode late-treated as never-treated within trimmed sample
+  t_max <- max(df$t)
+  df <- df %>%
+    mutate(G_trim = ifelse(G_int > t_max | G_int == 0, 0L, G_int))
+  
+  cat(sprintf("[build] Sample: %s to %s (%d rows)\n", 
+              min(df$date), max(df$date), nrow(df)))
+  cat(sprintf("[build] Treated cohorts (G_trim > 0): %s\n",
+              paste(sort(unique(df$G_trim[df$G_trim > 0])), collapse = ", ")))
+  cat(sprintf("[build] Counties as controls (G_trim = 0): %d\n",
+              n_distinct(df$county[df$G_trim == 0])))
   
   df
 }
 
-# Extract post-window average from CS/Imputation results
-post_window_avg <- function(att_obj, e_min = 1, e_max = 6) {
-  es <- aggte(att_obj, type = "dynamic", cband = FALSE, balance_e = e_max)
-  idx <- which(es$egt >= e_min & es$egt <= e_max)
+# Post-window mean ATT (cell average)
+post_window_att_only <- function(att_obj, e_min = 1, e_max = 5) {
+  att_raw <- data.frame(idx = seq_along(att_obj$att),
+                        g = att_obj$group, t = att_obj$t, att = att_obj$att)
+  att_raw$e <- att_raw$t - att_raw$g
+  keep <- which(att_raw$e >= e_min & att_raw$e <= e_max & !is.na(att_raw$att))
+  if (length(keep) == 0) return(list(att = NA_real_, n_cells = 0L, idx = integer(0)))
+  list(att = mean(att_raw$att[keep], na.rm = TRUE), n_cells = length(keep), idx = keep)
+}
+
+# Post-window mean ATT (cohort-weighted by treated counties)
+post_window_att_weighted_only <- function(att_obj, df, gname = "G_trim", e_min = 1, e_max = 5) {
+  att_raw <- data.frame(idx = seq_along(att_obj$att),
+                        g = att_obj$group, t = att_obj$t, att = att_obj$att)
+  att_raw$e <- att_raw$t - att_raw$g
+  post <- att_raw %>% filter(e >= e_min, e <= e_max, !is.na(att))
+  if (nrow(post) == 0) return(list(att = NA_real_, n_cells = 0L))
   
-  if (length(idx) == 0) {
-    return(c(att = NA_real_, se = NA_real_))
+  g_sizes <- df %>%
+    filter(.data[[gname]] > 0) %>%
+    distinct(county, .data[[gname]]) %>%
+    count(.data[[gname]], name = "n_treated")
+  
+  post <- post %>%
+    group_by(g) %>%
+    mutate(n_cells_g = n()) %>%
+    ungroup() %>%
+    left_join(g_sizes, by = c("g" = gname)) %>%
+    filter(!is.na(n_treated))
+  
+  if (nrow(post) == 0) return(list(att = NA_real_, n_cells = 0L))
+  
+  w_g <- post %>% distinct(g, n_treated, n_cells_g) %>%
+    mutate(w_g = n_treated / sum(n_treated))
+  post <- post %>% left_join(w_g %>% select(g, w_g), by = "g") %>%
+    mutate(w = w_g / n_cells_g)
+  
+  list(att = sum(post$w * post$att), n_cells = nrow(post))
+}
+
+# County cluster bootstrap for post-window mean ATT
+boot_post_window <- function(df, gname = "G_trim", anticipation = 2L,
+                             xformla = ~ unemployment_rate,
+                             est_method = "ipw",
+                             e_min = 1, e_max = 5,
+                             weight = c("cell", "cohort"),
+                             B = 499, seed = 123) {
+  if (!is.null(seed)) set.seed(seed)
+  weight <- match.arg(weight)
+  boot_att <- rep(NA_real_, B)
+  
+  for (b in seq_len(B)) {
+    # Stratified county bootstrap by cohort (keeps each cohort present)
+    g_vals <- sort(unique(df[[gname]]))
+    boot_counties <- unlist(lapply(g_vals, function(gv) {
+      ids_g <- unique(df$county[df[[gname]] == gv])
+      if (length(ids_g) == 0) return(character(0))
+      sample(ids_g, size = length(ids_g), replace = TRUE)
+    }))
+    df_b <- bind_rows(lapply(seq_along(boot_counties), function(i) {
+      df %>% filter(county == boot_counties[i]) %>% mutate(id_num = i)
+    }))
+    
+    att_b <- tryCatch({
+      maybe_suppress(
+        did::att_gt(
+          yname = "Y", tname = "t", idname = "id_num", gname = gname,
+          data = df_b, xformla = xformla, control_group = "notyettreated",
+          anticipation = anticipation, est_method = est_method,
+          allow_unbalanced_panel = TRUE, bstrap = FALSE
+        )
+      )
+    }, error = function(e) NULL)
+    
+    if (!is.null(att_b)) {
+      if (weight == "cell") {
+        boot_att[b] <- post_window_att_only(att_b, e_min, e_max)$att
+      } else {
+        boot_att[b] <- post_window_att_weighted_only(att_b, df_b, gname, e_min, e_max)$att
+      }
+    }
   }
   
-  # SE with covariance if available
-  V <- NULL
-  if (!is.null(es$V_egt)) V <- es$V_egt
-  if (is.null(V) && !is.null(es$V)) V <- es$V
-  
-  att_hat <- mean(es$att.egt[idx], na.rm = TRUE)
-  
-  if (!is.null(V) && length(idx) > 0) {
-    k <- length(idx)
-    w <- rep(1/k, k)
-    Vsub <- V[idx, idx, drop = FALSE]
-    se_hat <- sqrt(drop(t(w) %*% Vsub %*% w))
-  } else {
-    k <- length(idx)
-    se_hat <- sqrt(sum(es$se.egt[idx]^2, na.rm = TRUE)) / k
-  }
-  
-  c(att = att_hat, se = se_hat)
+  boot_att <- boot_att[is.finite(boot_att)]
+  se <- sd(boot_att)
+  ci <- stats::quantile(boot_att, probs = c(0.025, 0.975), na.rm = TRUE)
+  list(se = se, ci_lo = ci[[1]], ci_hi = ci[[2]], n_eff = length(boot_att))
 }
 
-# Event-study dataframe for plotting
-event_study_df <- function(es) {
-  crit <- if (!is.null(es$crit.val.egt)) es$crit.val.egt else 1.96
-  data.frame(
-    event_time = es$egt,
-    estimate   = es$att.egt,
-    se         = es$se.egt,
-    ci_lower   = es$att.egt - crit * es$se.egt,
-    ci_upper   = es$att.egt + crit * es$se.egt
-  )
-}
-
-# Plot event-study
-make_es_plot <- function(es_df, title, subtitle, file_name, 
-                         min_pre = -6, max_post = 6) {
-  es_df_win <- es_df %>%
-    filter(event_time >= min_pre & event_time <= max_post)
-  
-  p <- ggplot(es_df_win, aes(x = event_time, y = estimate)) +
-    geom_hline(yintercept = 0, linetype = "dashed", color = "gray40") +
-    geom_vline(xintercept = -0.5, linetype = "dotted", color = "red", alpha = 0.5) +
-    geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), 
-                fill = "#0072B2", alpha = 0.2) +
-    geom_line(color = "#0072B2", linewidth = 1) +
-    geom_point(size = 2.5, color = "#0072B2") +
-    scale_x_continuous(breaks = seq(min_pre, max_post, by = 2),
-                       name = "Months relative to enforcement") +
-    labs(
-      title = title,
-      subtitle = subtitle,
-      y = "ATT on log(1 + recipients per 1k, 18–49)"
-    ) +
-    theme_bw(base_size = 12)
-  
-  ggsave(file.path(outdir, file_name), p, width = 9, height = 6, dpi = 300)
-  cat(sprintf("[✓] Event-study plot saved: %s\n", file_name))
-}
-
-############################################################
-# 1. MAIN: Callaway-Sant'Anna DR-DiD
-############################################################
-
-# MAIN DEFINITION: Enforcement month + anticipation
-# Use enforcement month (G_int) and exclude the 2 months before enforcement
-# to account for pre-implementation behavioral responses.
-G_USE <- "G_int"  # Enforcement month (from cleaned data)
-ANT_USE <- 2L     # Anticipation window (months before enforcement)
-
-cat("\n╔", strrep("═", 60), "╗\n", sep = "")
-cat("║", sprintf("%-60s", " MAIN: CS DR-DiD (G=enforcement, Ant=2)"), "║\n", sep = "")
-cat("╚", strrep("═", 60), "╝\n\n", sep = "")
-
-# Build main dataframe
-Y_MAIN <- "y_per1k_18_49"
-df_main <- build_df(panel_raw, y_col = Y_MAIN)
-
-cat("Main specification: G = enforcement month, anticipation = 2\n")
-cat("This excludes the two months before enforcement from the comparison set.\n")
-cat("Rationale: Early behavioral responses likely begin ~2 months before enforcement.\n\n")
-
-# Ensure G_USE exists in df_main
-stopifnot(G_USE %in% names(df_main))
-
-# Check cohort sizes to identify tiny cohorts (potential issue for CS estimation)
-# IMPORTANT: Count unique counties per cohort, not total rows
-cat("\nCohort size check (by G_int, unique counties per cohort):\n")
-cohort_sizes <- df_main %>%
-  filter(.data[[G_USE]] > 0) %>%
-  distinct(id_num, .data[[G_USE]]) %>%
-  count(.data[[G_USE]], name = "n_counties") %>%
-  arrange(n_counties)
-print(cohort_sizes, n = 50)
-
-# Warn about tiny cohorts
-tiny_cohorts <- cohort_sizes %>% filter(n_counties <= 2)
-if (nrow(tiny_cohorts) > 0) {
-  cat(sprintf("\n⚠️  WARNING: Found %d tiny cohort(s) (n_counties <= 2):\n", nrow(tiny_cohorts)))
-  print(tiny_cohorts)
-  cat("These tiny cohorts may cause issues in CS estimation.\n")
-  cat("Consider: (1) reporting group-specific effects, (2) leave-one-county-out sensitivity checks.\n\n")
-} else {
-  # Check for small cohorts (3-6 counties) which may still need attention
-  small_cohorts <- cohort_sizes %>% filter(n_counties >= 3, n_counties <= 6)
-  if (nrow(small_cohorts) > 0) {
-    cat(sprintf("\n⚠️  NOTE: Found %d small cohort(s) (3-6 counties):\n", nrow(small_cohorts)))
-    print(small_cohorts)
-    cat("These small cohorts may benefit from group-specific effects and sensitivity checks.\n\n")
-  } else {
-    cat("\n✅ All cohorts have reasonable size (n_counties > 6).\n\n")
-  }
-}
-
-# Main CS specification: Enforcement month with anticipation = 2
-# Supports population weighting via weightsname parameter
-# Includes fallback for singular design matrix (common with small cohorts)
-run_cs <- function(df, gname = G_USE, control_group = "notyettreated", 
-                   anticipation = ANT_USE, weightsname = NULL) {
-  # Try DR method first (preferred)
+# Run CS (point estimates; bootstrap handled externally)
+run_cs <- function(df, gname = "G_trim", anticipation = 2L, 
+                   xformla = ~ unemployment_rate, weightsname = NULL,
+                   est_method = "ipw", bstrap = FALSE, biters = 0) {
   att <- tryCatch({
-    att_gt(
-      yname = "Y",
-      tname = "t",
-      idname = "id_num",
-      gname = gname,
-      xformla = ~ unemployment_rate + log_lf,
+    maybe_suppress(did::att_gt(
+      yname = "Y", tname = "t", idname = "id_num", gname = gname,
       data = df,
-      panel = TRUE,
-      control_group = control_group,
-      est_method = "dr",
-      anticipation = anticipation,
-      allow_unbalanced_panel = TRUE,
-      weightsname = weightsname
-    )
+      xformla = xformla, control_group = "notyettreated",
+      anticipation = anticipation, est_method = est_method,
+      allow_unbalanced_panel = TRUE, weightsname = weightsname,
+      bstrap = bstrap, biters = biters, clustervars = "id_num"
+    ))
   }, error = function(e) {
-    # If DR fails due to singular matrix, try IPW (less efficient but more robust)
-    if (grepl("singular|design matrix", conditionMessage(e), ignore.case = TRUE)) {
-      cat("    [!] DR method failed (singular design matrix), trying IPW method...\n")
-      tryCatch({
-        att_gt(
-          yname = "Y",
-          tname = "t",
-          idname = "id_num",
-          gname = gname,
-          xformla = ~ unemployment_rate + log_lf,
-          data = df,
-          panel = TRUE,
-          control_group = control_group,
-          est_method = "ipw",
-          anticipation = anticipation,
-          allow_unbalanced_panel = TRUE,
-          weightsname = weightsname
-        )
-      }, error = function(e2) {
-        # If IPW also fails, try without covariates
-        cat("    [!] IPW method also failed, trying without covariates...\n")
-        att_gt(
-          yname = "Y",
-          tname = "t",
-          idname = "id_num",
-          gname = gname,
-          xformla = NULL,
-          data = df,
-          panel = TRUE,
-          control_group = control_group,
-          est_method = "ipw",
-          anticipation = anticipation,
-          allow_unbalanced_panel = TRUE,
-          weightsname = weightsname
-        )
-      })
+    if (grepl("singular", e$message, ignore.case = TRUE) && est_method == "dr") {
+      cat("[!] DR failed (singular), trying IPW...\n")
+      maybe_suppress(did::att_gt(
+        yname = "Y", tname = "t", idname = "id_num", gname = gname,
+        data = df,
+        xformla = xformla, control_group = "notyettreated",
+        anticipation = anticipation, est_method = "ipw",
+        allow_unbalanced_panel = TRUE, weightsname = weightsname,
+      bstrap = bstrap, biters = biters, clustervars = "id_num"
+      ))
+    } else if (grepl("singular", e$message, ignore.case = TRUE)) {
+      cat("[!] IPW failed, trying no covariates...\n")
+      maybe_suppress(did::att_gt(
+        yname = "Y", tname = "t", idname = "id_num", gname = gname,
+        data = df,
+        xformla = NULL, control_group = "notyettreated",
+        anticipation = anticipation, est_method = "ipw",
+        allow_unbalanced_panel = TRUE, weightsname = weightsname,
+      bstrap = bstrap, biters = biters, clustervars = "id_num"
+      ))
     } else {
-      stop(e)  # Re-throw if it's a different error
+      stop(e)
     }
   })
   att
 }
 
-att_cs <- run_cs(df_main, gname = G_USE, anticipation = ANT_USE)
+############################################################
+# 1. MAIN SPECIFICATION: CS IPW-DiD (trimmed to 2018-06)
+############################################################
+
+cat("\n", strrep("=", 60), "\n")
+cat(" MAIN: CS IPW-DiD (Early Cohorts, Trim to 2018-06)\n")
+cat(strrep("=", 60), "\n\n")
+
+# Build main dataframe (trimmed)
+# Use log1p outcome for percentage interpretation (recommended)
+df_main <- build_df(panel_raw, y_col = "y_log1p_per1k_18_49", 
+                    end_date = as.Date("2018-06-01"))
+
+# Verify Y scale
+cat(sprintf("[Y check] min=%.2f, median=%.2f, max=%.2f\n",
+            min(df_main$Y, na.rm=TRUE), median(df_main$Y, na.rm=TRUE), 
+            max(df_main$Y, na.rm=TRUE)))
+
+# Main CS estimation (IPW with bootstrap inference)
+ANT_USE <- 2L
+att_cs <- run_cs(df_main, gname = "G_trim", anticipation = ANT_USE,
+                 est_method = "ipw", bstrap = FALSE)
+
+# Overall ATT (point estimate only; inference via external bootstrap)
 overall_cs <- aggte(att_cs, type = "simple")
-es_cs <- aggte(att_cs, type = "dynamic", cband = TRUE, 
-               balance_e = 6, min_e = -6, max_e = 6)
+cat(sprintf("CS Overall ATT (point estimate): %.4f\n", overall_cs$overall.att))
 
-cat(sprintf("CS Overall ATT: %.4f (SE = %.4f)\n",
-            overall_cs$overall.att, overall_cs$overall.se))
+# VCOV sanity check (bootstrap alignment)
+# DIAGNOSTIC: Check att_gt raw output
+cat("\n[DIAGNOSTIC] att_gt raw (g, t, att):\n")
+att_raw <- data.frame(g = att_cs$group, t = att_cs$t, att = att_cs$att)
+att_raw$e <- att_raw$t - att_raw$g
+cat(sprintf("  Unique event times in att_gt: %s\n", 
+            paste(sort(unique(att_raw$e)), collapse = ", ")))
+cat(sprintf("  Post-treatment cells (e >= 0): %d\n", sum(att_raw$e >= 0)))
+cat(sprintf("  e >= 1 cells: %d\n", sum(att_raw$e >= 1)))
 
-# MAIN ESTIMAND: Post 1-3 month average (so 2018-07 cohort contributes)
-# NOTE: Post 1-6 excludes major 2018-07 cohort because by k=4+ there's no control
-cs_1_3 <- post_window_avg(att_cs, e_min = 1, e_max = 3)
-cat(sprintf("CS Post 1-3 avg (MAIN): %.4f (SE = %.4f)\n", cs_1_3["att"], cs_1_3["se"]))
-
-# Secondary: Post 1-6 (only early cohorts contribute - for appendix)
-cs_1_6 <- post_window_avg(att_cs, e_min = 1, e_max = 6)
-cat(sprintf("CS Post 1-6 avg (early cohorts only): %.4f (SE = %.4f)\n", cs_1_6["att"], cs_1_6["se"]))
-
-# DIAGNOSTIC: Event-time coverage by cohort
-# Shows which cohorts contribute to each event time (critical for interpretation)
-cat("\n[DIAGNOSTIC] Event-time coverage by cohort:\n")
-att_df <- tibble(
-  g   = att_cs$group,
-  t   = att_cs$t,
-  att = att_cs$att,
-  se  = att_cs$se
-) %>%
-  mutate(e = t - g)
-
-# Coverage table: which cohorts contribute to each event time
-coverage <- att_df %>%
-  filter(!is.na(att)) %>%
-  group_by(e) %>%
-  summarise(
-    n_cohorts = n_distinct(g),
-    cohorts = paste(sort(unique(g)), collapse = ","),
-    n_cells = n(),
-    .groups = "drop"
-  ) %>%
-  filter(e >= -6, e <= 6) %>%
-  arrange(e)
-print(coverage)
-
-# Cohort-specific post 1-3 averages (main window)
-cat("\n[DIAGNOSTIC] Cohort-specific post 1-3 averages:\n")
-cohort_post13 <- att_df %>%
-  filter(e >= 1, e <= 3) %>%
-  group_by(g) %>%
-  summarise(
-    att_1_3 = mean(att, na.rm = TRUE),
-    se_1_3  = sqrt(sum(se^2, na.rm = TRUE)) / n(),
-    n_cells = sum(!is.na(att)),
-    .groups = "drop"
-  ) %>%
-  arrange(g)
-print(cohort_post13)
-
-# Cohort-specific post 1-6 averages (for reference)
-cat("\n[DIAGNOSTIC] Cohort-specific post 1-6 averages (early cohorts only):\n")
-cohort_post16 <- att_df %>%
-  filter(e >= 1, e <= 6) %>%
-  group_by(g) %>%
-  summarise(
-    att_1_6 = mean(att, na.rm = TRUE),
-    se_1_6  = sqrt(sum(se^2, na.rm = TRUE)) / n(),
-    n_cells = sum(!is.na(att)),
-    .groups = "drop"
-  ) %>%
-  arrange(g)
-print(cohort_post16)
-
-# Identify small cohort
-small_cohort <- cohort_post16 %>% 
-  left_join(cohort_sizes, by = c("g" = G_USE)) %>%
-  filter(n_counties <= 4) %>%
-  pull(g)
-
-if (length(small_cohort) > 0) {
-  cat(sprintf("\n⚠️  Small cohort detected: G_int = %s\n", paste(small_cohort, collapse = ", ")))
-  cat("This cohort may be driving the overall CS estimate.\n")
-}
-
-# Create event-study dataframe FIRST (before using it in pretrend test)
-es_df_cs <- event_study_df(es_cs)
-
-# Pre-trend test: Try conditional_did_pretest() first, fallback to simplified test
-# Note: conditional_did_pretest() requires data argument and may not support unbalanced panels
-cat("\nPre-trend test:\n")
-pretest_result <- NULL
-tryCatch({
-  # Try conditional_did_pretest() with data argument
-  # This function may not work with unbalanced panels, so we wrap in tryCatch
-  pretest_result <- conditional_did_pretest(
-    yname = "Y",
-    tname = "t",
-    idname = "id_num",
-    gname = G_USE,  # Use G_int (enforcement month)
-    xformla = ~ unemployment_rate + log_lf,
-    data = df_main,
-    panel = TRUE,
-    control_group = "notyettreated",
-    est_method = "dr",
-    anticipation = ANT_USE,  # anticipation = 2 with enforcement month
-    allow_unbalanced_panel = TRUE
-  )
-  if (!is.null(pretest_result) && !is.null(pretest_result$p.value)) {
-    cat(sprintf("  Conditional pre-test: p = %.4f\n", pretest_result$p.value))
-  } else {
-    cat("  Conditional pre-test: p-value not available\n")
-  }
-}, error = function(e) {
-  cat("  Conditional pre-test not available (", conditionMessage(e), ")\n")
-  cat("  Note: This function may not support unbalanced panels.\n")
-  cat("  Using simplified Wald test as diagnostic...\n")
-})
-
-# Simplified Wald test as diagnostic (ignores covariance, use with caution)
-# IMPORTANT: With anticipation=2, e=-2 and e=-1 are contaminated (excluded).
-# Only test e ≤ -3.
-es_df_cs_pre <- es_df_cs %>%
-  filter(event_time <= -3) %>%  # Pre-periods: only e ≤ -3 (pure pre, no contamination)
-  filter(!is.na(estimate), !is.na(se))
-
-if (nrow(es_df_cs_pre) > 0) {
-  # Simplified Wald test: sum of (estimate/se)^2 (ignores covariance)
-  wald_stat <- sum((es_df_cs_pre$estimate / es_df_cs_pre$se)^2, na.rm = TRUE)
-  p_wald <- 1 - pchisq(wald_stat, df = nrow(es_df_cs_pre))
-  cat(sprintf("  Simplified Wald (pre-periods <= -3, ignores covariance): p = %.4f\n", p_wald))
-  
-  # Check if any pre-period coefficients are significantly different from zero
-  sig_pre <- sum(abs(es_df_cs_pre$estimate / es_df_cs_pre$se) > 1.96, na.rm = TRUE)
-  cat(sprintf("  Number of pre-periods with |t| > 1.96: %d out of %d\n", 
-              sig_pre, nrow(es_df_cs_pre)))
-  
-  # Print pre-period coefficients for inspection
-  cat("  Pre-period coefficients:\n")
-  for (i in 1:nrow(es_df_cs_pre)) {
-    cat(sprintf("    e = %2d: %.4f (SE=%.4f, t=%.2f)\n",
-                es_df_cs_pre$event_time[i],
-                es_df_cs_pre$estimate[i],
-                es_df_cs_pre$se[i],
-                es_df_cs_pre$estimate[i] / es_df_cs_pre$se[i]))
-  }
+# Show some post-treatment cells if they exist
+post_cells <- att_raw %>% filter(e >= 1) %>% head(10)
+if (nrow(post_cells) > 0) {
+  cat("  First 10 post-treatment cells:\n")
+  print(post_cells)
 } else {
-  cat("  No pre-period coefficients available.\n")
+  cat("  ⚠️ NO POST-TREATMENT CELLS (e >= 1) FOUND!\n")
+  cat("  This explains why aggte(dynamic) lacks post horizons.\n")
 }
-make_es_plot(
-  es_df_cs,
-  title = "Event-Study: ABAWD Enforcement and SNAP Participation",
-  subtitle = "CS DR-DiD, not-yet-treated control, anticipation = 2",
-  file_name = "fig_es_cs_main.png"
-)
 
-# Store results
+# Event study (diagnostic)
+es_cs <- aggte(att_cs, type = "dynamic", na.rm = TRUE, min_e = -6, max_e = 6, 
+               cband = FALSE, balance_e = 0)
+es_diag <- data.frame(e = es_cs$egt, att = es_cs$att.egt, se = es_cs$se.egt)
+cat("\n[DIAGNOSTIC] aggte dynamic coefficients:\n")
+print(es_diag)
+
+# Main estimand: cohort-weighted post 1-5 / 1-3 + bootstrap inference
+cs_1_5_cell <- post_window_att_only(att_cs, e_min = 1, e_max = 5)
+cs_1_3_cell <- post_window_att_only(att_cs, e_min = 1, e_max = 3)
+cs_1_5_w <- post_window_att_weighted_only(att_cs, df_main, e_min = 1, e_max = 5)
+cs_1_3_w <- post_window_att_weighted_only(att_cs, df_main, e_min = 1, e_max = 3)
+
+boot_cs_1_5_w <- boot_post_window(df_main, anticipation = ANT_USE, e_min = 1, e_max = 5,
+                                  est_method = "ipw", weight = "cohort",
+                                  B = BOOT_ITERS, seed = SEED + 2)
+boot_cs_1_3_w <- boot_post_window(df_main, anticipation = ANT_USE, e_min = 1, e_max = 3,
+                                  est_method = "ipw", weight = "cohort",
+                                  B = BOOT_ITERS, seed = SEED + 3)
+
+boot_cs_1_5_cell <- boot_post_window(df_main, anticipation = ANT_USE, e_min = 1, e_max = 5,
+                                     est_method = "ipw", weight = "cell",
+                                     B = BOOT_ITERS, seed = SEED)
+boot_cs_1_3_cell <- boot_post_window(df_main, anticipation = ANT_USE, e_min = 1, e_max = 3,
+                                     est_method = "ipw", weight = "cell",
+                                     B = BOOT_ITERS, seed = SEED + 1)
+
+cat(sprintf("CS Post 1-5 avg (MAIN, cohort-weighted): %.4f (boot SE = %.4f, n_eff=%d)\n",
+            cs_1_5_w$att, boot_cs_1_5_w$se, boot_cs_1_5_w$n_eff))
+cat(sprintf("CS Post 1-3 avg (cohort-weighted): %.4f (boot SE = %.4f, n_eff=%d)\n",
+            cs_1_3_w$att, boot_cs_1_3_w$se, boot_cs_1_3_w$n_eff))
+cat(sprintf("CS Post 1-5 avg (cell-average): %.4f (boot SE = %.4f, n_eff=%d)\n",
+            cs_1_5_cell$att, boot_cs_1_5_cell$se, boot_cs_1_5_cell$n_eff))
+cat(sprintf("CS Post 1-3 avg (cell-average): %.4f (boot SE = %.4f, n_eff=%d)\n",
+            cs_1_3_cell$att, boot_cs_1_3_cell$se, boot_cs_1_3_cell$n_eff))
+
+# Results storage
 results_list <- list()
-results_list[["Main: CS DR-DiD (post 1-3mo)"]] <- list(
-  att = cs_1_3["att"],
-  se  = cs_1_3["se"]
+results_list[["Main: CS (post 1-5, cohort-weighted)"]] <- list(
+  att = cs_1_5_w$att, se = boot_cs_1_5_w$se,
+  ci_lower = boot_cs_1_5_w$ci_lo, ci_upper = boot_cs_1_5_w$ci_hi, is_boot = TRUE
 )
-results_list[["Secondary: CS (post 1-6mo, early cohorts)"]] <- list(
-  att = cs_1_6["att"],
-  se  = cs_1_6["se"]
+results_list[["Main: CS (post 1-3, cohort-weighted)"]] <- list(
+  att = cs_1_3_w$att, se = boot_cs_1_3_w$se,
+  ci_lower = boot_cs_1_3_w$ci_lo, ci_upper = boot_cs_1_3_w$ci_hi, is_boot = TRUE
 )
-
-############################################################
-# 2. ALTERNATIVE 1: Sun-Abraham (TWFE)
-############################################################
-
-cat("\n╔", strrep("═", 60), "╗\n", sep = "")
-cat("║", sprintf("%-60s", " ALTERNATIVE 1: Sun-Abraham (TWFE)"), "║\n", sep = "")
-cat("╚", strrep("═", 60), "╝\n\n", sep = "")
-
-# Align with anticipation=2 by dropping rel = -2, -1
-df_sa <- df_main %>%
-  mutate(
-    G_use = .data[[G_USE]],
-    rel = t - .data[[G_USE]]
-  ) %>%
-  filter(rel <= -3 | rel >= 0)
-
-sa_mod <- feols(
-  Y ~ sunab(G_use, t, ref.p = -3) + unemployment_rate + log_lf | id_num + t,
-  data = df_sa,
-  cluster = ~ id_num
+results_list[["Robust: CS (post 1-5, cell-avg)"]] <- list(
+  att = cs_1_5_cell$att, se = boot_cs_1_5_cell$se,
+  ci_lower = boot_cs_1_5_cell$ci_lo, ci_upper = boot_cs_1_5_cell$ci_hi, is_boot = TRUE
 )
-
-cat("Sun-Abraham model fit complete.\n")
-
-# Extract Sun-Abraham event-time coefficients
-b_sa <- coef(sa_mod)
-V_sa <- vcov(sa_mod)
-nm_sa <- names(b_sa)
-sa_terms <- nm_sa[grepl("sunab", nm_sa)]
-
-if (length(sa_terms) > 0) {
-  # Ensure terms exist in vcov
-  V_names <- names(sqrt(diag(V_sa)))
-  sa_terms <- intersect(sa_terms, V_names)
-  if (length(sa_terms) == 0) {
-    cat("[!] Sun-Abraham coefficients found, but none matched vcov names.\n")
-  }
-  
-  ev_sa <- suppressWarnings(as.integer(sub(".*::(-?\\d+)$", "\\1", sa_terms)))
-  if (all(is.na(ev_sa))) {
-    ev_sa <- suppressWarnings(as.integer(sub(".*t::(-?\\d+).*", "\\1", sa_terms)))
-  }
-  
-  sa_df <- data.frame(
-    term = sa_terms,
-    event_time = ev_sa,
-    estimate = b_sa[sa_terms],
-    se = sqrt(diag(V_sa))[sa_terms]
-  ) %>%
-    filter(!is.na(event_time)) %>%
-    arrange(event_time)
-  
-  # Post 1-6 average
-  post_terms_sa <- sa_df$term[sa_df$event_time >= 1 & sa_df$event_time <= 6]
-  if (length(post_terms_sa) > 0) {
-    w_sa <- rep(1 / length(post_terms_sa), length(post_terms_sa))
-    att_sa_1_6 <- sum(w_sa * b_sa[post_terms_sa])
-    Vsub_sa <- V_sa[post_terms_sa, post_terms_sa, drop = FALSE]
-    se_sa_1_6 <- sqrt(as.numeric(t(w_sa) %*% Vsub_sa %*% w_sa))
-    
-    cat(sprintf("Sun-Abraham Post 1-6 avg: %.4f (SE = %.4f)\n",
-                att_sa_1_6, se_sa_1_6))
-    # Post 1-3 (main window)
-    post_terms_sa_13 <- sa_df$term[sa_df$event_time >= 1 & sa_df$event_time <= 3]
-    if (length(post_terms_sa_13) > 0) {
-      w_sa_13 <- rep(1 / length(post_terms_sa_13), length(post_terms_sa_13))
-      att_sa_1_3 <- sum(w_sa_13 * b_sa[post_terms_sa_13])
-      Vsub_sa_13 <- V_sa[post_terms_sa_13, post_terms_sa_13, drop = FALSE]
-      se_sa_1_3 <- sqrt(as.numeric(t(w_sa_13) %*% Vsub_sa_13 %*% w_sa_13))
-      cat(sprintf("Sun-Abraham Post 1-3 avg: %.4f (SE = %.4f)\n",
-                  att_sa_1_3, se_sa_1_3))
-      results_list[["Alt 1: Sun-Abraham (post 1-3mo)"]] <- list(
-        att = att_sa_1_3,
-        se  = se_sa_1_3
-      )
-    }
-    
-    # Post 1-6 (secondary)
-    results_list[["Alt 1: Sun-Abraham (post 1-6mo, secondary)"]] <- list(
-      att = att_sa_1_6,
-      se  = se_sa_1_6
-    )
-  } else {
-    cat("[!] Could not extract post 1-6 coefficients from Sun-Abraham model.\n")
-  }
-  
-  # Event-study plot
-  sa_es <- sa_df %>%
-    filter(event_time >= -6, event_time <= 6) %>%
-    mutate(
-      ci_lower = estimate - 1.96 * se,
-      ci_upper = estimate + 1.96 * se
-    )
-  make_es_plot(
-    sa_es,
-    title = "Event-Study: Sun-Abraham (TWFE)",
-    subtitle = "Same sample and covariates, anticipation=2 (rel -2/-1 dropped)",
-    file_name = "fig_es_sunab.png"
-  )
-} else {
-  cat("[!] No Sun-Abraham coefficients found.\n")
-}
-
-############################################################
-# 3. ALTERNATIVE 2: Imputation DID (BJS)
-############################################################
-
-cat("\n╔", strrep("═", 60), "╗\n", sep = "")
-cat("║", sprintf("%-60s", " ALTERNATIVE 2: Imputation DID (BJS)"), "║\n", sep = "")
-cat("╚", strrep("═", 60), "╝\n\n", sep = "")
-
-# Create weight column for post 1-6 average (wtr parameter)
-# This allows did_imputation to directly compute post 1-6 average with correct SE
-# wtr should assign weight 1/6 to treated units at event times 1-6, zero otherwise
-df_main <- df_main %>%
-  mutate(
-    # Calculate event time relative to G_int (enforcement month)
-    event_time_imp = ifelse(.data[[G_USE]] > 0, t - .data[[G_USE]], NA_integer_),
-    # Assign equal weight (1/6) to event times 1-6 for treated units
-    w_post1_6 = ifelse(!is.na(event_time_imp) & event_time_imp >= 1 & event_time_imp <= 6, 
-                       1/6, 0)
-  )
-
-run_imp <- function(df, gname = G_USE, horizon = NULL, pretrends = -6:-3, 
-                   wname = NULL, wtr = NULL) {
-  # If wtr is specified, use it to get weighted average directly (no horizon needed)
-  # Otherwise, use horizon to get event-study coefficients
-  did_imputation(
-    data = df,
-    yname = "Y",
-    gname = gname,
-    tname = "t",
-    idname = "id_num",
-    first_stage = ~ unemployment_rate + log_lf | id_num + t,
-    horizon = horizon,
-    pretrends = pretrends,
-    wname = wname,
-    wtr = wtr,  # Weight column for targeted average (post 1-6)
-    cluster_var = "id_num"
-  )
-}
-
-# Try wtr first, but fallback to horizon if it doesn't work
-# Use wtr to get post 1-6 average directly with correct SE
-imp <- tryCatch({
-  run_imp(df_main, gname = G_USE, horizon = NULL, pretrends = -6:-3, wtr = "w_post1_6")
-}, error = function(e) {
-  cat("    [!] wtr parameter failed, falling back to horizon method.\n")
-  cat("    Error:", conditionMessage(e), "\n")
-  NULL
-})
-
-# Extract post 1-6 average from imputation results
-if (is.null(imp)) {
-  # Fallback: use horizon method
-  cat("    Using horizon method (manual average of event-study coefficients)...\n")
-  imp <- run_imp(df_main, gname = G_USE, horizon = -6:6, pretrends = -6:-3, wtr = NULL)
-}
-
-if (is.data.frame(imp)) {
-  # Debug: print structure of imputation output
-  cat(sprintf("    Imputation output: %d rows, columns: %s\n", 
-              nrow(imp), paste(names(imp), collapse = ", ")))
-  if (nrow(imp) <= 5) {
-    cat("    First few rows:\n")
-    print(head(imp))
-  }
-  
-  # Initialize flag to track if we've successfully extracted
-  imp_1_6 <- NULL
-  es_df_imp <- NULL
-  
-  # Check if wtr was used (should return a single row with "treat" or similar term)
-  # Some versions of didimputation may return different term names
-  if (nrow(imp) == 1) {
-    # Single row: check if it's a wtr result or just a single event time
-    term_name <- as.character(imp$term[1])
-    cat(sprintf("    Single row detected, term: '%s'\n", term_name))
-    
-    # Check if term looks like a weighted average result (not a numeric event time)
-    is_wtr_result <- any(grepl("treat|wtr|weighted|att|effect", term_name, ignore.case = TRUE)) || 
-                     !grepl("^-?[0-9]+$", term_name)
-    
-    if (is_wtr_result) {
-      # wtr was used: direct weighted average
-      imp_1_6 <- c(att = imp$estimate[1], se = imp$std.error[1])
-      cat(sprintf("    Imputation Post 1-6 avg (via wtr): %.4f (SE = %.4f)\n", 
-                  imp_1_6["att"], imp_1_6["se"]))
-      
-      # For event-study plot, run again with horizon
-      imp_es_obj <- run_imp(df_main, gname = G_USE, horizon = -6:6, pretrends = -6:-3, wtr = NULL)
-      if (is.data.frame(imp_es_obj)) {
-        imp_es <- imp_es_obj %>%
-          filter(lhs == "Y") %>%
-          mutate(event_time = suppressWarnings(as.integer(term))) %>%
-          filter(!is.na(event_time))
-        
-        es_df_imp <- imp_es %>%
-          filter(event_time >= -6, event_time <= 6) %>%
-          mutate(
-            estimate = estimate,
-            se = std.error,
-            ci_lower = estimate - 1.96 * se,
-            ci_upper = estimate + 1.96 * se
-          ) %>%
-          select(event_time, estimate, se, ci_lower, ci_upper) %>%
-          arrange(event_time)
-      }
-    }
-  }
-  
-  # Extract from event-study coefficients (horizon method or fallback)
-  # Only do this if wtr didn't work or we need event-study plot
-  if (is.null(imp_1_6)) {
-    # If single row but wasn't wtr result, or multiple rows, extract from event-study
-    if (nrow(imp) > 1 || (nrow(imp) == 1 && grepl("^-?[0-9]+$", as.character(imp$term[1])))) {
-      imp_es <- imp %>%
-        filter(lhs == "Y") %>%
-        mutate(event_time = suppressWarnings(as.integer(term))) %>%
-        filter(!is.na(event_time))
-      
-      cat(sprintf("    Extracted event times: %s\n", 
-                  paste(sort(unique(imp_es$event_time)), collapse = ", ")))
-      
-      imp_post <- imp_es %>%
-        filter(event_time >= 1, event_time <= 6) %>%
-        filter(!is.na(estimate), !is.na(std.error))
-      
-      if (nrow(imp_post) > 0) {
-        # Calculate average
-        imp_att_1_6 <- mean(imp_post$estimate, na.rm = TRUE)
-        
-        # SE: conservative approximation (assumes independence)
-        k <- nrow(imp_post)
-        imp_se_1_6 <- sqrt(sum(imp_post$std.error^2, na.rm = TRUE)) / k
-        
-        imp_1_6 <- c(att = imp_att_1_6, se = imp_se_1_6)
-        cat(sprintf("    Imputation Post 1-6 avg: %.4f (SE = %.4f, conservative - from %d horizons)\n", 
-                    imp_1_6["att"], imp_1_6["se"], k))
-        
-        es_df_imp <- imp_es %>%
-          filter(event_time >= -6, event_time <= 6) %>%
-          mutate(
-            estimate = estimate,
-            se = std.error,
-            ci_lower = estimate - 1.96 * se,
-            ci_upper = estimate + 1.96 * se
-          ) %>%
-          select(event_time, estimate, se, ci_lower, ci_upper) %>%
-          arrange(event_time)
-      } else {
-        cat("    [!] Could not extract post 1-6 coefficients.\n")
-        if (nrow(imp_es) > 0) {
-          cat(sprintf("    Available event times: %s\n", 
-                      paste(sort(unique(imp_es$event_time)), collapse = ", ")))
-        } else {
-          cat("    No event times found in imputation output.\n")
-        }
-        imp_1_6 <- c(att = NA_real_, se = NA_real_)
-        if (is.null(es_df_imp)) {
-          es_df_imp <- data.frame(event_time = integer(), estimate = numeric(), 
-                                 se = numeric(), ci_lower = numeric(), ci_upper = numeric())
-        }
-      }
-    }
-  }
-  
-  # Ensure imp_1_6 and es_df_imp are set
-  if (is.null(imp_1_6)) {
-    imp_1_6 <- c(att = NA_real_, se = NA_real_)
-  }
-  if (is.null(es_df_imp)) {
-    es_df_imp <- data.frame(event_time = integer(), estimate = numeric(), 
-                           se = numeric(), ci_lower = numeric(), ci_upper = numeric())
-  }
-} else if (inherits(imp, "att_gt") || inherits(imp, "MP")) {
-  # If did_imputation returns an att_gt-like object, use standard method
-  imp_1_6 <- post_window_avg(imp, e_min = 1, e_max = 6)
-  cat(sprintf("    Imputation Post 1-6 avg: %.4f (SE = %.4f)\n", 
-              imp_1_6["att"], imp_1_6["se"]))
-  
-  es_imp <- aggte(imp, type = "dynamic", cband = TRUE, 
-                  balance_e = 6, min_e = -6, max_e = 6)
-  es_df_imp <- event_study_df(es_imp)
-} else {
-  cat("    [!] Unexpected imputation output format.\n")
-  imp_1_6 <- c(att = NA_real_, se = NA_real_)
-  es_df_imp <- data.frame(event_time = integer(), estimate = numeric(), 
-                         se = numeric(), ci_lower = numeric(), ci_upper = numeric())
-}
-make_es_plot(
-  es_df_imp,
-  title = "Event-Study: Imputation DID (BJS)",
-  subtitle = "Borusyak, Jaravel, and Spiess (2021)",
-  file_name = "fig_es_imputation.png"
-)
-
-# Post 1-3 (main window) from imputation
-if (exists("imp_es") && is.data.frame(imp_es) && nrow(imp_es) > 0) {
-  imp_post_13 <- imp_es %>%
-    filter(event_time >= 1, event_time <= 3) %>%
-    filter(!is.na(estimate), !is.na(std.error))
-  
-  if (nrow(imp_post_13) > 0) {
-    imp_att_1_3 <- mean(imp_post_13$estimate, na.rm = TRUE)
-    k_13 <- nrow(imp_post_13)
-    imp_se_1_3 <- sqrt(sum(imp_post_13$std.error^2, na.rm = TRUE)) / k_13
-    cat(sprintf("    Imputation Post 1-3 avg: %.4f (SE = %.4f)\n",
-                imp_att_1_3, imp_se_1_3))
-    results_list[["Alt 2: Imputation (post 1-3mo)"]] <- list(
-      att = imp_att_1_3,
-      se  = imp_se_1_3
-    )
-  }
-}
-
-results_list[["Alt 2: Imputation (post 1-6mo, secondary)"]] <- list(
-  att = imp_1_6["att"],
-  se  = imp_1_6["se"]
+results_list[["Robust: CS (post 1-3, cell-avg)"]] <- list(
+  att = cs_1_3_cell$att, se = boot_cs_1_3_cell$se,
+  ci_lower = boot_cs_1_3_cell$ci_lo, ci_upper = boot_cs_1_3_cell$ci_hi, is_boot = TRUE
 )
 
 ############################################################
-# 4. ALTERNATIVE 3: Stacked Event Study
+# 2. EVENT STUDY PLOT
 ############################################################
 
-cat("\n╔", strrep("═", 60), "╗\n", sep = "")
-cat("║", sprintf("%-60s", " ALTERNATIVE 3: Stacked Event Study"), "║\n", sep = "")
-cat("╚", strrep("═", 60), "╝\n\n", sep = "")
+g_sizes <- df_main %>%
+  filter(G_trim > 0) %>%
+  distinct(county, G_trim) %>%
+  count(G_trim, name = "n_g")
 
-build_stacked <- function(df, gname = G_USE, L = 6, K = 6, drop_anticipation = ANT_USE) {
-  # Use same G as main specification
+es_pts <- att_raw %>%
+  left_join(g_sizes, by = c("g" = "G_trim")) %>%
+  filter(e >= -6, e <= 6) %>%
+  group_by(e) %>%
+  summarise(att = weighted.mean(att, w = n_g, na.rm = TRUE), .groups = "drop")
+
+p_es <- ggplot(es_pts, aes(x = e, y = att)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+  geom_vline(xintercept = -0.5, linetype = "dotted", color = "red") +
+  geom_line(color = "steelblue", linewidth = 1) +
+  geom_point(color = "steelblue", size = 2) +
+  labs(
+    title = "Event Study: Early ABAWD Enforcement Effect",
+    subtitle = "Cohort-weighted points from att_gt (no CI)",
+    x = "Months relative to enforcement",
+    y = "ATT (log1p SNAP per 1k pop 18-49)"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold"))
+
+ggsave(file.path(outdir, "fig_es_main.png"), p_es, width = 8, height = 5, dpi = 150)
+cat("[+] Event study plot saved.\n")
+
+############################################################
+# 3. ALTERNATIVE: Stacked Event Study (K=5)
+############################################################
+
+cat("\n", strrep("=", 60), "\n")
+cat(" ALT: Stacked Event Study (K=5)\n")
+cat(strrep("=", 60), "\n\n")
+
+build_stacked <- function(df, gname = "G_trim", L = 6, K = 5) {
   treated_g <- sort(unique(df[[gname]][df[[gname]] > 0]))
   
   out <- lapply(treated_g, function(g) {
     win <- df %>% filter(t >= g - L, t <= g + K)
-    
-    # Controls: never-treated or treated after window ends
-    # Note: This uses "clean controls" - more restrictive than CS not-yet-treated
-    win <- win %>%
-      filter(.data[[gname]] == g | .data[[gname]] == 0L | .data[[gname]] > (g + K)) %>%
+    controls <- win %>% 
+      filter(.data[[gname]] == 0 | .data[[gname]] > g + K) %>%
+      mutate(treat = 0L)
+    treated <- win %>% 
+      filter(.data[[gname]] == g) %>%
+      mutate(treat = 1L)
+    bind_rows(controls, treated) %>%
       mutate(
         stack_g = g,
         rel = t - g,
-        treat = as.integer(.data[[gname]] == g),
-        unit_stack = interaction(id_num, stack_g, drop = TRUE),
-        time_stack = interaction(t, stack_g, drop = TRUE)
+        unit_stack = paste0(id_num, "_", g),
+        time_stack = paste0(t, "_", g)
       )
-    # Drop anticipation periods (e.g., rel = -2, -1 when anticipation = 2)
-    if (!is.null(drop_anticipation) && drop_anticipation > 0) {
-      win <- win %>% filter(!(rel %in% (-drop_anticipation):-1))
-    }
-    win
   })
-  
   bind_rows(out)
 }
 
-run_stacked <- function(stk_df, ref_period = -3) {
-  # ref = -3 is correct when anticipation = 2 (last pure pre-period)
-  feols(
-    Y ~ i(rel, treat, ref = ref_period) + unemployment_rate + log_lf | 
-      unit_stack + time_stack,
-    data = stk_df,
-    cluster = ~ id_num
-  )
+stk <- build_stacked(df_main)
+cat(sprintf("[Stacked] %d rows, %d stacks\n", nrow(stk), n_distinct(stk$stack_g)))
+
+# Stacked regression
+stk_mod <- feols(Y ~ i(rel, treat, ref = -1) | unit_stack + time_stack,
+                 data = stk, cluster = ~county)
+
+# Extract coefficients
+stk_coef <- coef(stk_mod)
+stk_se   <- sqrt(diag(vcov(stk_mod)))
+stk_names <- names(stk_coef)
+
+stk_df <- data.frame(
+  term = stk_names,
+  estimate = stk_coef,
+  se = stk_se,
+  stringsAsFactors = FALSE
+) %>%
+  filter(grepl("rel::", term)) %>%
+  mutate(
+    rel = as.integer(sub("rel::(-?\\d+):treat", "\\1", term))
+  ) %>%
+  filter(!is.na(rel)) %>%
+  arrange(rel)
+
+# Post 1-5 average (use vcov for linear combination)
+post_stk <- stk_df %>% filter(rel >= 1, rel <= 5)
+if (nrow(post_stk) > 0) {
+  terms_15 <- post_stk$term
+  b_15 <- stk_coef[terms_15]
+  V_15 <- vcov(stk_mod)[terms_15, terms_15, drop = FALSE]
+  w_15 <- rep(1 / length(terms_15), length(terms_15))
+  att_stk_1_5 <- sum(w_15 * b_15)
+  se_stk_1_5  <- sqrt(as.numeric(t(w_15) %*% V_15 %*% w_15))
+  cat(sprintf("Stacked Post 1-5 avg: %.4f (SE = %.4f)\n", att_stk_1_5, se_stk_1_5))
+  results_list[["Alt: Stacked (post 1-5)"]] <- list(att = att_stk_1_5, se = se_stk_1_5)
 }
 
-stk <- build_stacked(df_main, gname = G_USE, L = 6, K = 6)
-mod_stk <- run_stacked(stk)
-
-# Extract post 1-6 average from stacked model
-b_stk <- coef(mod_stk)
-V_stk <- vcov(mod_stk)
-
-# Find coefficients for rel = 1, 2, ..., 6 using regex (robust across fixest versions)
-# Pattern: "rel::1:treat", "rel::2:treat", etc. (or variations)
-nm_stk <- names(b_stk)
-post_terms_stk <- nm_stk[grepl("^rel::[1-6]:treat$", nm_stk)]
-
-# If that doesn't work, try alternative patterns
-if (length(post_terms_stk) == 0) {
-  post_terms_stk <- nm_stk[grepl("rel.*::[1-6].*treat|treat.*::[1-6]", nm_stk)]
+# Post 1-3
+post_stk_13 <- stk_df %>% filter(rel >= 1, rel <= 3)
+if (nrow(post_stk_13) > 0) {
+  terms_13 <- post_stk_13$term
+  b_13 <- stk_coef[terms_13]
+  V_13 <- vcov(stk_mod)[terms_13, terms_13, drop = FALSE]
+  w_13 <- rep(1 / length(terms_13), length(terms_13))
+  att_stk_1_3 <- sum(w_13 * b_13)
+  se_stk_1_3  <- sqrt(as.numeric(t(w_13) %*% V_13 %*% w_13))
+  cat(sprintf("Stacked Post 1-3 avg: %.4f (SE = %.4f)\n", att_stk_1_3, se_stk_1_3))
+  results_list[["Alt: Stacked (post 1-3)"]] <- list(att = att_stk_1_3, se = se_stk_1_3)
 }
 
-# Debug: print available coefficient names if not found
-if (length(post_terms_stk) == 0) {
-  cat("    [!] Could not find post 1-6 coefficients with standard pattern.\n")
-  cat("    Available coefficient names (first 30):\n")
-  cat("    ", paste(head(nm_stk, 30), collapse = ", "), "\n")
-  # Try to extract all rel coefficients and filter
-  rel_coefs <- nm_stk[grepl("rel|treat", nm_stk, ignore.case = TRUE)]
-  cat("    Coefficients containing 'rel' or 'treat':\n")
-  cat("    ", paste(head(rel_coefs, 20), collapse = ", "), "\n")
-}
+############################################################
+# 4. ALTERNATIVE: Sun-Abraham (comparison only)
+############################################################
 
-if (length(post_terms_stk) > 0) {
-  w_stk <- rep(1 / length(post_terms_stk), length(post_terms_stk))
-  att_stk_1_6 <- sum(w_stk * b_stk[post_terms_stk])
-  
-  Vsub_stk <- V_stk[post_terms_stk, post_terms_stk, drop = FALSE]
-  se_stk_1_6 <- sqrt(as.numeric(t(w_stk) %*% Vsub_stk %*% w_stk))
-  
-  cat(sprintf("Stacked Post 1-6 avg: %.4f (SE = %.4f)\n", 
-              att_stk_1_6, se_stk_1_6))
-  
-  # Post 1-3 (main window)
-  post_terms_stk_13 <- nm_stk[grepl("^rel::[1-3]:treat$", nm_stk)]
-  if (length(post_terms_stk_13) > 0) {
-    w_stk_13 <- rep(1 / length(post_terms_stk_13), length(post_terms_stk_13))
-    att_stk_1_3 <- sum(w_stk_13 * b_stk[post_terms_stk_13])
-    Vsub_stk_13 <- V_stk[post_terms_stk_13, post_terms_stk_13, drop = FALSE]
-    se_stk_1_3 <- sqrt(as.numeric(t(w_stk_13) %*% Vsub_stk_13 %*% w_stk_13))
-    cat(sprintf("Stacked Post 1-3 avg: %.4f (SE = %.4f)\n",
-                att_stk_1_3, se_stk_1_3))
-    results_list[["Alt 3: Stacked (post 1-3mo)"]] <- list(
-      att = att_stk_1_3,
-      se  = se_stk_1_3
-    )
-  }
-  
-  results_list[["Alt 3: Stacked (post 1-6mo, secondary)"]] <- list(
-    att = att_stk_1_6,
-    se  = se_stk_1_6
-  )
-} else {
-  cat("[!] Could not extract post 1-6 coefficients from stacked model.\n")
-  cat("Available coefficient names (first 20):\n")
-  cat(paste(head(names(b_stk), 20), collapse = ", "), "\n")
-}
+cat("\n", strrep("=", 60), "\n")
+cat(" ALT: Sun-Abraham (comparison)\n")
+cat(strrep("=", 60), "\n\n")
 
-# Event-study plot for stacked (extract all rel coefficients)
-# Use regex to extract event times from coefficient names (robust across fixest versions)
-rel_coefs <- names(b_stk)[grepl("rel|treat", names(b_stk), ignore.case = TRUE) & 
-                          grepl("::", names(b_stk))]
+df_sa <- df_main %>% filter(G_trim > 0 | G_trim == 0)
+df_sa$cohort <- df_sa$G_trim
 
-# Extract numeric values from coefficient names (try multiple patterns)
-rel_vals <- suppressWarnings({
-  # Pattern 1: "rel::k:treat" or "rel::k::treat"
-  vals1 <- as.integer(sub(".*rel::(-?\\d+).*treat.*", "\\1", rel_coefs))
-  # Pattern 2: "treat::k" or similar
-  vals2 <- as.integer(sub(".*treat.*::(-?\\d+).*", "\\1", rel_coefs))
-  # Pattern 3: any number between ::
-  vals3 <- as.integer(sub(".*::(-?\\d+).*", "\\1", rel_coefs))
-  # Use first non-NA value
-  ifelse(!is.na(vals1), vals1, ifelse(!is.na(vals2), vals2, vals3))
+sa_mod <- tryCatch({
+  feols(Y ~ sunab(cohort, t, ref.p = c(-6, -3)) | id_num + t,
+        data = df_sa, cluster = ~county)
+}, error = function(e) {
+  cat("[!] Sun-Abraham failed:", e$message, "\n")
+  NULL
 })
 
-if (length(rel_vals) > 0) {
-  stk_es <- data.frame(
-    event_time = rel_vals,
-    estimate = b_stk[rel_coefs],
-    se = se(mod_stk)[rel_coefs]
-  ) %>%
-    filter(event_time >= -6, event_time <= 6) %>%
-    arrange(event_time) %>%
-    mutate(
-      ci_lower = estimate - 1.96 * se,
-      ci_upper = estimate + 1.96 * se
+if (!is.null(sa_mod)) {
+  cat("Sun-Abraham model fit.\n")
+  
+  # Extract coefficients directly from model
+  sa_coef <- tryCatch({
+    cf <- coef(sa_mod)
+    se <- sqrt(diag(vcov(sa_mod)))
+    data.frame(
+      term = names(cf),
+      estimate = as.numeric(cf),
+      se = as.numeric(se),
+      stringsAsFactors = FALSE
     )
+  }, error = function(e) NULL)
   
-  make_es_plot(
-    stk_es,
-    title = "Event-Study: Stacked DiD",
-    subtitle = "Stacked event-study with clean controls",
-    file_name = "fig_es_stacked.png"
-  )
-}
-
-############################################################
-# 5. ROBUSTNESS CHECKS (8 Core Checks)
-############################################################
-
-cat("\n╔", strrep("═", 60), "╗\n", sep = "")
-cat("║", sprintf("%-60s", " ROBUSTNESS CHECKS"), "║\n", sep = "")
-cat("╚", strrep("═", 60), "╝\n\n", sep = "")
-
-# [1] Anticipation sensitivity (using post 1-3 as main window)
-cat("[1] Robustness: Anticipation Sensitivity...\n")
-for (ant in c(0L, 1L, 2L, 3L)) {
-  if (ant == ANT_USE) next
-  att_ant <- run_cs(df_main, gname = G_USE, anticipation = ant)
-  ant_1_3 <- post_window_avg(att_ant, e_min = 1, e_max = 3)
-  cat(sprintf("    Anticipation = %d: %.4f (SE=%.4f)\n",
-              ant, ant_1_3["att"], ant_1_3["se"]))
-  results_list[[sprintf("Robust: Anticipation=%d", ant)]] <- list(
-    att = ant_1_3["att"],
-    se  = ant_1_3["se"]
-  )
-}
-
-# [2] Trim to last untreated period (before final cohort treated)
-cat("\n[2] Robustness: Trim to Last Untreated Period...\n")
-t_last <- max(df_main[[G_USE]][df_main[[G_USE]] > 0], na.rm = TRUE)
-t_trim <- t_last - 1L
-df_trim <- df_main %>% filter(t <= t_trim)
-if (nrow(df_trim) > 0) {
-  trim_date <- as.Date(sprintf("%04d-%02d-01", t_trim %/% 12L, t_trim %% 12L))
-  cat(sprintf("    Trimming to t <= %d (%s)\n", t_trim, trim_date))
-  att_trim <- run_cs(df_trim, gname = G_USE, anticipation = ANT_USE)
-  trim_1_3 <- post_window_avg(att_trim, e_min = 1, e_max = 3)
-  cat(sprintf("    CS (trimmed) Post 1-3: %.4f (SE=%.4f)\n",
-              trim_1_3["att"], trim_1_3["se"]))
-  results_list[["Robust: Trim to pre-final cohort"]] <- list(
-    att = trim_1_3["att"],
-    se  = trim_1_3["se"]
-  )
-} else {
-  cat("    [!] Trimmed sample is empty.\n")
-}
-
-# [3] Population-weighted: Use pop_1849 as sampling weights
-cat("\n[3] Robustness: Population-Weighted...\n")
-if ("pop_1849" %in% names(df_main) && any(!is.na(df_main$pop_1849) & df_main$pop_1849 > 0)) {
-  att_cs_weighted <- run_cs(df_main, gname = G_USE, anticipation = ANT_USE, 
-                            weightsname = "pop_1849")
-  cs_weighted_1_3 <- post_window_avg(att_cs_weighted, e_min = 1, e_max = 3)
-  cat(sprintf("    CS (pop-weighted) Post 1-3: %.4f (SE=%.4f)\n",
-              cs_weighted_1_3["att"], cs_weighted_1_3["se"]))
-  results_list[["Robust: Pop-weighted"]] <- list(
-    att = cs_weighted_1_3["att"],
-    se  = cs_weighted_1_3["se"]
-  )
-} else {
-  cat("    [!] Population weights (pop_1849) not available.\n")
-}
-
-# [4] Outcome scale: Level (rate) instead of log
-cat("\n[4] Robustness: Outcome Scale (Level vs Log)...\n")
-if ("y_per1k_18_49" %in% names(panel_raw)) {
-  df_level <- build_df(panel_raw, y_col = "y_per1k_18_49") %>%
-    mutate(Y = y_per1k_18_49)  # Use level, not log
-  
-  stopifnot(G_USE %in% names(df_level))
-  att_level <- run_cs(df_level, gname = G_USE, anticipation = ANT_USE)
-  level_1_3 <- post_window_avg(att_level, e_min = 1, e_max = 3)
-  cat(sprintf("    Level outcome Post 1-3: %.4f (SE=%.4f)\n",
-              level_1_3["att"], level_1_3["se"]))
-  results_list[["Robust: Level outcome"]] <- list(
-    att = level_1_3["att"],
-    se  = level_1_3["se"]
-  )
-}
-
-# [5] Window sensitivity: Different post windows
-cat("\n[5] Robustness: Post Window Sensitivity...\n")
-# Post 1-2 months (very short-term)
-cs_1_2 <- post_window_avg(att_cs, e_min = 1, e_max = 2)
-cat(sprintf("    Post 1-2 months: %.4f (SE=%.4f)\n",
-            cs_1_2["att"], cs_1_2["se"]))
-results_list[["Robust: Post 1-2mo"]] <- list(
-  att = cs_1_2["att"],
-  se  = cs_1_2["se"]
-)
-
-# Post 1-4 months
-cs_1_4 <- post_window_avg(att_cs, e_min = 1, e_max = 4)
-cat(sprintf("    Post 1-4 months: %.4f (SE=%.4f)\n",
-            cs_1_4["att"], cs_1_4["se"]))
-results_list[["Robust: Post 1-4mo"]] <- list(
-  att = cs_1_4["att"],
-  se  = cs_1_4["se"]
-)
-
-# Post 1-6 months (note: early cohorts only due to identification limits)
-cat(sprintf("    Post 1-6 months (early cohorts only): %.4f (SE=%.4f)\n",
-            cs_1_6["att"], cs_1_6["se"]))
-
-# [6] Drop small cohort (if applicable)
-cat("\n[6] Robustness: Drop Small Cohort...\n")
-if (length(small_cohort) > 0) {
-  for (g_drop in small_cohort) {
-    df_drop_small <- df_main %>% filter(.data[[G_USE]] != g_drop)
+  if (!is.null(sa_coef) && nrow(sa_coef) > 0) {
+    # Parse event time from term names (format: "t::X:cohort::Y")
+    sa_coef$event_time <- as.integer(gsub(".*t::(-?\\d+):.*", "\\1", sa_coef$term))
+    sa_df <- sa_coef %>% filter(!is.na(event_time))
     
-    if (nrow(df_drop_small) < nrow(df_main) && any(df_drop_small[[G_USE]] > 0)) {
-      cat(sprintf("    Dropping cohort G_int = %d...\n", g_drop))
-      att_drop_small <- run_cs(df_drop_small, gname = G_USE, anticipation = ANT_USE)
-      drop_small_1_3 <- post_window_avg(att_drop_small, e_min = 1, e_max = 3)
-      cat(sprintf("    CS (drop G_int=%d) Post 1-3: %.4f (SE=%.4f)\n",
-                  g_drop, drop_small_1_3["att"], drop_small_1_3["se"]))
-      results_list[[sprintf("Robust: Drop cohort %d", g_drop)]] <- list(
-        att = drop_small_1_3["att"],
-        se  = drop_small_1_3["se"]
-      )
-    }
-  }
-} else {
-  cat("    No small cohorts to drop.\n")
-}
-
-# [7] Leave-one-out (for small cohort only)
-cat("\n[7] Robustness: Leave-One-Out (Small Cohort)...\n")
-if (length(small_cohort) > 0) {
-  for (g_loo in small_cohort) {
-    small_ids <- df_main %>%
-      filter(.data[[G_USE]] == g_loo) %>%
-      distinct(id_num) %>%
-      pull(id_num)
-    
-    if (length(small_ids) > 0) {
-      cat(sprintf("    Leave-one-out for cohort G_int = %d (%d counties)...\n", 
-                  g_loo, length(small_ids)))
+    if (nrow(sa_df) > 0) {
+      cat(sprintf("  SA event times found: %s\n", 
+                  paste(sort(unique(sa_df$event_time)), collapse = ", ")))
       
-      loo_results <- lapply(small_ids, function(drop_id) {
-        d <- df_main %>% filter(id_num != drop_id)
-        if (any(d[[G_USE]] > 0)) {
-          a <- run_cs(d, gname = G_USE, anticipation = ANT_USE)
-          p <- post_window_avg(a, e_min = 1, e_max = 3)
-          tibble(drop_id = drop_id, att = p["att"], se = p["se"])
-        } else {
-          NULL
-        }
-      })
-      
-      loo_df <- bind_rows(loo_results)
-      if (nrow(loo_df) > 0) {
-        loo_df <- loo_df %>% arrange(att)
-        cat("    Leave-one-out results:\n")
-        print(loo_df)
-        
-        # Store min/max for summary
-        results_list[[sprintf("Robust: LOO min (cohort %d)", g_loo)]] <- list(
-          att = min(loo_df$att, na.rm = TRUE),
-          se  = loo_df$se[which.min(loo_df$att)]
-        )
-        results_list[[sprintf("Robust: LOO max (cohort %d)", g_loo)]] <- list(
-          att = max(loo_df$att, na.rm = TRUE),
-          se  = loo_df$se[which.max(loo_df$att)]
-        )
+      post_sa <- sa_df %>% filter(event_time >= 1, event_time <= 5)
+      if (nrow(post_sa) > 0) {
+        terms_sa <- post_sa$term
+        b_sa <- coef(sa_mod)[terms_sa]
+        V_sa <- vcov(sa_mod)[terms_sa, terms_sa, drop = FALSE]
+        w_sa <- rep(1 / length(terms_sa), length(terms_sa))
+        att_sa_1_5 <- sum(w_sa * b_sa)
+        se_sa_1_5  <- sqrt(as.numeric(t(w_sa) %*% V_sa %*% w_sa))
+        cat(sprintf("Sun-Abraham Post 1-5 avg: %.4f (SE = %.4f)\n", 
+                    att_sa_1_5, se_sa_1_5))
+        results_list[["Alt: Sun-Abraham (post 1-5)"]] <- list(att = att_sa_1_5, se = se_sa_1_5)
+      } else {
+        cat("  No post-treatment (e=1-5) coefficients found.\n")
       }
     }
   }
-} else {
-  cat("    No small cohorts for leave-one-out.\n")
-}
-
-# [8] Exclude Wayne County (if applicable)
-cat("\n[8] Robustness: Exclude Wayne County...\n")
-drop_ids <- c("Wayne", "Wayne County", "26163", "260163")
-df_drop <- df_main
-
-if ("id" %in% names(df_drop)) {
-  df_drop <- df_drop %>% filter(!as.character(id) %in% drop_ids)
-}
-if ("county" %in% names(df_drop)) {
-  df_drop <- df_drop %>% filter(!as.character(county) %in% c("Wayne", "Wayne County"))
-}
-if ("county_id" %in% names(df_drop)) {
-  df_drop <- df_drop %>% filter(!as.character(county_id) %in% c("26163", "260163"))
-}
-
-if (nrow(df_drop) < nrow(df_main)) {
-  stopifnot(G_USE %in% names(df_drop))
-  att_drop <- run_cs(df_drop, gname = G_USE, anticipation = ANT_USE)
-  drop_1_3 <- post_window_avg(att_drop, e_min = 1, e_max = 3)
-  cat(sprintf("    Excl. Wayne Post 1-3: %.4f (SE=%.4f)\n",
-              drop_1_3["att"], drop_1_3["se"]))
-  cat("    NOTE: Dropping Wayne changes identification (2018-07 cohort loses controls).\n")
-  results_list[["Robust: Excl. Wayne County"]] <- list(
-    att = drop_1_3["att"],
-    se  = drop_1_3["se"]
-  )
-} else {
-  cat("    [!] Wayne County not found or already excluded.\n")
 }
 
 ############################################################
-# 6. RESULTS TABLE
+# 5. ROBUSTNESS CHECKS
 ############################################################
 
-cat("\n╔", strrep("═", 60), "╗\n", sep = "")
-cat("║", sprintf("%-60s", " MAIN RESULTS TABLE"), "║\n", sep = "")
-cat("╚", strrep("═", 60), "╝\n\n", sep = "")
+cat("\n", strrep("=", 60), "\n")
+cat(" ROBUSTNESS CHECKS\n")
+cat(strrep("=", 60), "\n\n")
 
-results_df <- bind_rows(lapply(names(results_list), function(spec) {
-  res <- results_list[[spec]]
-  if (is.null(res) || !is.finite(res$att) || !is.finite(res$se)) {
-    return(NULL)
+# A. Trim end date sensitivity (2018-05)
+cat("--- Trim to 2018-05 ---\n")
+df_trim05 <- build_df(panel_raw, y_col = "y_log1p_per1k_18_49", 
+                      end_date = as.Date("2018-05-01"))
+att_trim05 <- tryCatch(run_cs(df_trim05, gname = "G_trim", anticipation = ANT_USE,
+                              est_method = "ipw", bstrap = FALSE),
+                       error = function(e) NULL)
+if (!is.null(att_trim05)) {
+  cs_trim05 <- post_window_att_only(att_trim05, e_min = 1, e_max = 4)
+  boot_trim05 <- boot_post_window(df_trim05, anticipation = ANT_USE, e_min = 1, e_max = 4,
+                                  est_method = "ipw", B = BOOT_ITERS, seed = SEED + 10)
+  cat(sprintf("CS Post 1-4 (trim 2018-05): %.4f (boot SE = %.4f, n_eff=%d)\n", 
+              cs_trim05$att, boot_trim05$se, boot_trim05$n_eff))
+  results_list[["Robust: Trim 2018-05 (post 1-4)"]] <- list(
+    att = cs_trim05$att, se = boot_trim05$se,
+    ci_lower = boot_trim05$ci_lo, ci_upper = boot_trim05$ci_hi, is_boot = TRUE)
+}
+
+# B. Anticipation sensitivity
+cat("\n--- Anticipation sensitivity ---\n")
+for (ant in c(0L, 1L, 3L)) {
+  att_ant <- tryCatch(run_cs(df_main, gname = "G_trim", anticipation = ant,
+                             est_method = "ipw", bstrap = FALSE),
+                      error = function(e) NULL)
+  if (!is.null(att_ant)) {
+    cs_ant <- post_window_att_only(att_ant, e_min = 1, e_max = 5)
+    boot_ant <- boot_post_window(df_main, anticipation = ant, e_min = 1, e_max = 5,
+                                 est_method = "ipw", B = BOOT_ITERS, seed = SEED + 20 + ant)
+    cat(sprintf("Anticipation = %d: Post 1-5 = %.4f (boot SE = %.4f, n_eff=%d)\n", 
+                ant, cs_ant$att, boot_ant$se, boot_ant$n_eff))
+    results_list[[sprintf("Robust: Ant=%d (post 1-5)", ant)]] <- list(
+      att = cs_ant$att, se = boot_ant$se,
+      ci_lower = boot_ant$ci_lo, ci_upper = boot_ant$ci_hi, is_boot = TRUE)
   }
-  data.frame(
-    Specification = spec,
-    ATT = res$att,
-    SE  = res$se,
-    stringsAsFactors = FALSE
+}
+
+# C. Exclude Wayne
+cat("\n--- Exclude Wayne ---\n")
+df_no_wayne <- df_main %>% filter(county != "Wayne")
+att_no_wayne <- tryCatch(run_cs(df_no_wayne, gname = "G_trim", anticipation = ANT_USE,
+                                est_method = "ipw", bstrap = FALSE),
+                         error = function(e) NULL)
+if (!is.null(att_no_wayne)) {
+  cs_no_wayne <- post_window_att_only(att_no_wayne, e_min = 1, e_max = 5)
+  boot_no_wayne <- boot_post_window(df_no_wayne, anticipation = ANT_USE, e_min = 1, e_max = 5,
+                                    est_method = "ipw", B = BOOT_ITERS, seed = SEED + 30)
+  cat(sprintf("Excl. Wayne: Post 1-5 = %.4f (boot SE = %.4f, n_eff=%d)\n", 
+              cs_no_wayne$att, boot_no_wayne$se, boot_no_wayne$n_eff))
+  results_list[["Robust: Excl. Wayne"]] <- list(
+    att = cs_no_wayne$att, se = boot_no_wayne$se,
+    ci_lower = boot_no_wayne$ci_lo, ci_upper = boot_no_wayne$ci_hi, is_boot = TRUE)
+}
+
+# D. Leave-one-out for early cohort (2017-01, 4 counties)
+cat("\n--- Leave-one-out (2017-01 cohort) ---\n")
+g_2017 <- min(unique(df_main$G_trim[df_main$G_trim > 0]))
+counties_2017 <- unique(df_main$county[df_main$G_trim == g_2017])
+
+if (length(counties_2017) > 1) {
+  loo_results <- sapply(counties_2017, function(cty) {
+    df_loo <- df_main %>% filter(county != cty)
+    att_loo <- tryCatch(run_cs(df_loo, gname = "G_trim", anticipation = ANT_USE,
+                               est_method = "ipw", bstrap = FALSE),
+                        error = function(e) NULL)
+    if (!is.null(att_loo)) {
+      post_window_att_only(att_loo, e_min = 1, e_max = 5)$att
+    } else NA_real_
+  })
+  
+  loo_range <- range(loo_results, na.rm = TRUE)
+  loo_mean <- mean(loo_results, na.rm = TRUE)
+  loo_sd <- sd(loo_results, na.rm = TRUE)
+  cat(sprintf("LOO range: [%.4f, %.4f]\n", loo_range[1], loo_range[2]))
+  cat(sprintf("LOO mean (SD): %.4f (%.4f)\n", loo_mean, loo_sd))
+  results_list[["Robust: LOO mean"]] <- list(att = loo_mean, se = loo_sd, is_loo = TRUE)
+}
+
+# E. Population-weighted
+cat("\n--- Population-weighted ---\n")
+weights_col <- intersect(c("w_pop_18_49", "population_18_49"), names(df_main))[1]
+if (!is.na(weights_col)) {
+att_weighted <- tryCatch(
+    run_cs(df_main, gname = "G_trim", anticipation = ANT_USE, weightsname = weights_col,
+           est_method = "ipw", bstrap = FALSE),
+    error = function(e) NULL
   )
-})) %>%
-  filter(is.finite(ATT), is.finite(SE)) %>%
+  if (!is.null(att_weighted)) {
+    cs_weighted <- post_window_att_only(att_weighted, e_min = 1, e_max = 5)
+    boot_weighted <- boot_post_window(df_main, anticipation = ANT_USE, e_min = 1, e_max = 5,
+                                      est_method = "ipw", B = BOOT_ITERS,
+                                      seed = SEED + 40)
+    cat(sprintf("Pop-weighted: Post 1-5 = %.4f (boot SE = %.4f, n_eff=%d)\n", 
+                cs_weighted$att, boot_weighted$se, boot_weighted$n_eff))
+    results_list[["Robust: Pop-weighted"]] <- list(
+      att = cs_weighted$att, se = boot_weighted$se,
+      ci_lower = boot_weighted$ci_lo, ci_upper = boot_weighted$ci_hi, is_boot = TRUE)
+  }
+}
+
+############################################################
+# 6. RESULTS SUMMARY
+############################################################
+
+cat("\n", strrep("=", 60), "\n")
+cat(" RESULTS SUMMARY\n")
+cat(strrep("=", 60), "\n\n")
+cat("Note: LOO mean is descriptive (no CI/p-value).\n\n")
+
+results_df <- tibble(
+  Specification = names(results_list),
+  ATT = sapply(results_list, function(x) x$att),
+  SE  = sapply(results_list, function(x) x$se),
+  CI_lower = sapply(results_list, function(x) if (!is.null(x$ci_lower)) x$ci_lower else NA_real_),
+  CI_upper = sapply(results_list, function(x) if (!is.null(x$ci_upper)) x$ci_upper else NA_real_),
+  is_boot  = sapply(results_list, function(x) isTRUE(x$is_boot)),
+  is_loo   = sapply(results_list, function(x) isTRUE(x$is_loo))
+) %>%
   mutate(
-    CI_lower = ATT - 1.96 * SE,
-    CI_upper = ATT + 1.96 * SE,
-    t_stat   = abs(ATT / SE),
-    p_value  = 2 * (1 - pnorm(t_stat)),
-    Sig      = case_when(
+    CI_lower = ifelse(is.na(CI_lower) & !is_boot & !is_loo & is.finite(SE), ATT - 1.96 * SE, CI_lower),
+    CI_upper = ifelse(is.na(CI_upper) & !is_boot & !is_loo & is.finite(SE), ATT + 1.96 * SE, CI_upper),
+    p_value  = ifelse(!is_boot & !is_loo & is.finite(SE), 2 * pnorm(-abs(ATT / SE)), NA_real_),
+    Sig = case_when(
+      is.na(p_value) ~ "",
       p_value < 0.01 ~ "***",
       p_value < 0.05 ~ "**",
       p_value < 0.10 ~ "*",
@@ -1131,53 +631,46 @@ results_df <- bind_rows(lapply(names(results_list), function(spec) {
     )
   )
 
-# Print main table (Main + Alternatives)
-cat("=== MAIN RESULTS (Post 1-6 Month Average) ===\n")
-main_table <- results_df %>%
-  filter(grepl("^Main:|^Alt", Specification)) %>%
+# Main results
+cat("=== MAIN RESULTS ===\n")
+main_tbl <- results_df %>% 
+  filter(grepl("^Main:", Specification)) %>%
   select(Specification, ATT, SE, CI_lower, CI_upper, Sig)
-print(main_table)
+print(main_tbl)
 
-# Diagnostic: Compare the three main methods
-cat("\n=== DIAGNOSTIC: Method Comparison ===\n")
-main_methods <- results_df %>%
-  filter(grepl("^Main:|^Alt", Specification)) %>%
-  select(Specification, ATT, SE)
+# Alternatives
+cat("\n=== ALTERNATIVE ESTIMATORS ===\n")
+alt_tbl <- results_df %>%
+  filter(grepl("^Alt:", Specification)) %>%
+  select(Specification, ATT, SE, CI_lower, CI_upper, Sig)
+print(alt_tbl)
 
-if (nrow(main_methods) >= 2) {
-  cat("Post 1-6 month average across methods:\n")
-  for (i in 1:nrow(main_methods)) {
-    cat(sprintf("  %-30s: %8.4f (SE=%6.4f)\n",
-                main_methods$Specification[i],
-                main_methods$ATT[i],
-                main_methods$SE[i]))
-  }
-  
-  # Check for sign consistency
-  atts <- main_methods$ATT[is.finite(main_methods$ATT)]
-  if (length(atts) >= 2) {
-    all_positive <- all(atts > 0, na.rm = TRUE)
-    all_negative <- all(atts < 0, na.rm = TRUE)
-    if (all_positive || all_negative) {
-      cat("  ✓ Sign consistent across methods\n")
-    } else {
-      cat("  ⚠ WARNING: Sign inconsistency across methods!\n")
-      cat("  This may indicate:\n")
-      cat("    - Different estimands (check sample windows, control definitions)\n")
-      cat("    - Treatment timing (G) may need adjustment\n")
-      cat("    - Check event-study plots for dynamic patterns\n")
-    }
-  }
-}
+# Robustness
+cat("\n=== ROBUSTNESS CHECKS ===\n")
+rob_tbl <- results_df %>%
+  filter(grepl("^Robust:", Specification)) %>%
+  select(Specification, ATT, SE, CI_lower, CI_upper, Sig)
+print(rob_tbl)
 
-# Save full table
-write_csv(results_df, file.path(outdir, "did_main_results.csv"))
-cat("\n[✓] Full results table saved to did_main_results.csv\n")
+# Save
+write_csv(results_df, file.path(outdir, "did_results_main.csv"))
+cat("\n[+] Results saved to did_results_main.csv\n")
 
-# Save main table only
-write_csv(main_table, file.path(outdir, "did_main_table.csv"))
-cat("[✓] Main results table saved to did_main_table.csv\n")
+cat("\n", strrep("=", 60), "\n")
+cat(" INTERPRETATION\n")
+cat(strrep("=", 60), "\n")
+sample_start <- min(df_main$date, na.rm = TRUE)
+sample_end <- max(df_main$date, na.rm = TRUE)
+cat(sprintf("
+Main finding: Effect of early ABAWD enforcement (2017-01 and 2018-01 
+cohorts) on SNAP participation, using counties not yet enforced through 
+June 2018 as controls.
 
-cat("\n╔", strrep("═", 60), "╗\n", sep = "")
-cat("║", sprintf("%-60s", " ANALYSIS COMPLETE"), "║\n", sep = "")
-cat("╚", strrep("═", 60), "╝\n\n", sep = "")
+Sample: %s to %s (trimmed before 68-county expansion)
+Treated: 14 counties (4 in 2017-01, 10 in 2018-01)
+Controls: 69 counties (not yet treated within sample window)
+Anticipation: 2 months excluded before enforcement
+
+Main estimand: Post 1-5 month average ATT (cohort-weighted)
+Inference: county-cluster bootstrap (external resampling)
+", sample_start, sample_end))
