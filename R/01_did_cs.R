@@ -39,7 +39,7 @@ panel_raw <- read_csv(infile, show_col_types = FALSE)
 build_analysis_df <- function(Y_COL,
                               start_date = as.Date("2014-01-01"),
                               end_date   = as.Date("2019-12-01")) {
-  COVARS <- c("unemployment_rate", "log_lf")
+  COVARS <- c("unemployment_rate")
   
   # Check if Y_COL exists in the data
   if (!Y_COL %in% names(panel_raw)) {
@@ -49,7 +49,7 @@ build_analysis_df <- function(Y_COL,
   }
   
   # Check required columns exist
-  required_cols <- c("date", "id", "G", Y_COL, "unemployment_rate", "labor_force", "population_18_49")
+  required_cols <- c("date", "id", "G", Y_COL, "unemployment_rate", "population_18_49")
   missing_cols <- setdiff(required_cols, names(panel_raw))
   if (length(missing_cols) > 0) {
     stop(sprintf("Missing required columns: %s\nAvailable columns: %s",
@@ -91,7 +91,6 @@ build_analysis_df <- function(Y_COL,
         as.numeric(.data[[Y_COL]])
       },
       unemployment_rate = as.numeric(unemployment_rate),
-      log_lf            = log1p(as.numeric(labor_force)),
       population_18_49  = as.numeric(population_18_49)
     ) %>%
     filter(date >= start_date, date <= end_date, !is.na(Y)) %>%
@@ -104,27 +103,48 @@ build_analysis_df <- function(Y_COL,
 }
 
 run_cs_did <- function(df, anticipation = 2, control_group = "notyettreated") {
-  att <- att_gt(
-    yname          = "Y",
-    tname          = "t",
-    idname         = "id_num",
-    gname          = "G_int",
-    xformla        = ~ unemployment_rate + log_lf,
-    data           = df,
-    panel          = TRUE,
-    control_group  = control_group,
-    est_method     = "dr",
-    anticipation   = anticipation,
-    allow_unbalanced_panel = TRUE
+  # Use covariate when possible; if pre-treatment design is singular (small cohorts),
+  # re-run without covariate so we keep all units and all cohorts.
+  att <- tryCatch(
+    att_gt(
+      yname          = "Y",
+      tname          = "t",
+      idname         = "id_num",
+      gname          = "G_int",
+      xformla        = ~ unemployment_rate,
+      data           = df,
+      panel          = TRUE,
+      control_group  = control_group,
+      est_method     = "dr",
+      anticipation   = anticipation,
+      allow_unbalanced_panel = TRUE
+    ),
+    error = function(e) {
+      if (grepl("singular|design matrix", conditionMessage(e), ignore.case = TRUE)) {
+        message("[CS] Pre-treatment design singular with covariate; using all units without covariate.")
+        att_gt(
+          yname          = "Y",
+          tname          = "t",
+          idname         = "id_num",
+          gname          = "G_int",
+          xformla        = NULL,
+          data           = df,
+          panel          = TRUE,
+          control_group  = control_group,
+          est_method     = "dr",
+          anticipation   = anticipation,
+          allow_unbalanced_panel = TRUE
+        )
+      } else {
+        stop(e)
+      }
+    }
   )
-  
-  # Focus on event times -6 to +6 months for cleaner aggregation
-  # balance_e = 6 ensures each cohort has at least 0..6 post periods
   list(
     att     = att,
     overall = aggte(att, type = "simple"),
-    es      = aggte(att, type = "dynamic", cband = TRUE, balance_e = 6, 
-                    min_e = -6, max_e = 6)  # Focus on ±6 months window
+    es      = aggte(att, type = "dynamic", cband = TRUE, balance_e = 6,
+                    min_e = -6, max_e = 6)
   )
 }
 
@@ -572,7 +592,7 @@ tryCatch({
   # This allows estimation of e=-2, -1 while keeping -3 as reference
   # The two reference periods help with identification
   sa_model <- feols(
-    Y ~ unemployment_rate + log_lf + sunab(G_sa, t, ref.p = c(-3, -1)) | id_num + t,
+    Y ~ unemployment_rate + sunab(G_sa, t, ref.p = c(-3, -1)) | id_num + t,
     data = df_sa,
     cluster = ~ id_num
   )
@@ -668,7 +688,7 @@ tryCatch({
   
   tryCatch({
     sa_model_bin <- feols(
-      Y ~ unemployment_rate + log_lf + 
+      Y ~ unemployment_rate + 
         sunab(G_sa, t, ref.p = c(-3, -1), bin.rel = list("post_1_6" = 1:6)) | 
         id_num + t,
       data = df_sa,
@@ -724,7 +744,7 @@ df_twfe <- df_main %>%
 tryCatch({
   # TWFE with Ant=2 (aligned with main CS specification)
   twfe_ant2 <- feols(
-    Y ~ treat_post_ant2 + unemployment_rate + log_lf | id_num + t,
+    Y ~ treat_post_ant2 + unemployment_rate | id_num + t,
     data = df_twfe, cluster = ~ id_num
   )
   
@@ -739,7 +759,7 @@ tryCatch({
   
   # Also report Ant=0 for comparison
   twfe_ant0 <- feols(
-    Y ~ treat_post_ant0 + unemployment_rate + log_lf | id_num + t,
+    Y ~ treat_post_ant0 + unemployment_rate | id_num + t,
     data = df_twfe, cluster = ~ id_num
   )
   
@@ -882,6 +902,162 @@ p_forest <- ggplot(plot_data, aes(x = ATT, y = reorder(Specification, -spec_num)
 
 ggsave(file.path(outdir, "fig_forest_plot.png"), p_forest, width = 10, height = 7, dpi = 300)
 cat("[✓] Forest Plot saved to fig_forest_plot.png\n")
+
+
+############################################################
+# 5. DDD: Adult vs Child (third difference)
+############################################################
+# Standard definition: DDD = DiD_adult - DiD_child. Negative => policy reduced adult participation more.
+# Preferred: single regression with stacked data and triple-interaction event-study:
+#   Y_ctg = sum_k θ_k (D_{c,t}^k × G_g) + μ_cg + λ_tg + ε_ctg
+# so θ_k are event-study DDDs directly (no post-difference or covariance handling).
+# FE: μ_cg = county×group, λ_tg = time×group.
+
+cat("\n╔", strrep("═", 60), "╗\n", sep = "")
+cat("║", sprintf("%-60s", " 5. DDD (ADULT vs CHILD)"), "║\n", sep = "")
+cat("╚", strrep("═", 60), "╝\n\n", sep = "")
+
+ddd_cols_need <- c("adult_recipients", "child_recipients",
+                   "date", "id", "unemployment_rate")
+if (!all(ddd_cols_need %in% names(panel_raw))) {
+  cat("[!] DDD skipped: panel_with_G is missing adult/child columns.\n")
+  cat("    Required:", paste(ddd_cols_need, collapse = ", "), "\n")
+} else {
+  COVARS_DDD <- c("unemployment_rate")
+  start_date <- as.Date("2014-01-01")
+  end_date   <- as.Date("2019-12-01")
+
+  wide_ddd <- panel_raw %>%
+    mutate(
+      date   = as.Date(date),
+      t      = year(date) * 12L + month(date),
+      id_num = as.integer(factor(id)),
+      G_int  = case_when(
+        is.na(G) ~ 0L,
+        G == "0" ~ 0L,
+        TRUE ~ {
+          g_chr <- as.character(G)
+          yy    <- as.integer(substr(g_chr, 1, 4))
+          mm    <- as.integer(substr(g_chr, 6, 7))
+          ifelse(is.na(yy) | is.na(mm), 0L, yy * 12L + mm)
+        }
+      ),
+      adult_recipients = as.numeric(adult_recipients),
+      child_recipients = as.numeric(child_recipients),
+      population_18_49 = as.numeric(population_18_49),
+      unemployment_rate = as.numeric(unemployment_rate)
+    ) %>%
+    filter(date >= start_date, date <= end_date) %>%
+    filter(!is.na(adult_recipients), !is.na(child_recipients),
+           adult_recipients >= 0, child_recipients >= 0) %>%
+    filter(complete.cases(across(all_of(COVARS_DDD))))
+
+  cat(sprintf("    DDD wide panel: %d county-months\n", nrow(wide_ddd)))
+
+  tryCatch({
+    # Stacked data: two rows per (county, month), g in {adult, child}
+    # G_sa: never-treated get max(t)+1000 so event_time is always "pre"
+    wide_ddd <- wide_ddd %>%
+      mutate(
+        Y_adult = log1p(adult_recipients),
+        Y_child = log1p(child_recipients),
+        G_sa    = ifelse(G_int == 0L, max(t, na.rm = TRUE) + 1000L, G_int),
+        event_time_raw = as.integer(t - G_sa)
+      )
+    # Bin event time to [-6, 6] so we keep all obs and get one θ_k per k
+    wide_ddd$event_time <- pmin(pmax(wide_ddd$event_time_raw, -6L), 6L)
+
+    long_adult <- wide_ddd %>%
+      transmute(id_num, t, event_time, G_g = 1L, Y = Y_adult,
+                id_cg = paste(id_num, "adult"), t_g = paste(t, "adult"))
+    long_child <- wide_ddd %>%
+      transmute(id_num, t, event_time, G_g = 0L, Y = Y_child,
+                id_cg = paste(id_num, "child"), t_g = paste(t, "child"))
+    long_ddd <- bind_rows(long_adult, long_child)
+    cat(sprintf("    DDD long (stacked): %d rows\n", nrow(long_ddd)))
+
+    # Single regression: Y ~ i(event_time, ref=-1):G_g | county×group + time×group
+    # θ_k = event-study DDD at k (no post-difference, SE from same model)
+    mod_ddd <- feols(
+      Y ~ i(event_time, ref = -1) : G_g | id_cg + t_g,
+      data = long_ddd,
+      cluster = ~ id_num
+    )
+
+    # Extract θ_k: fixest names like "event_time::-6:G_g"; parse event time robustly
+    b <- coef(mod_ddd)
+    V <- as.matrix(vcov(mod_ddd))
+    nms <- names(b)[grepl("^event_time::", names(b))]
+    evt_vals <- as.integer(regmatches(nms, regexpr("-?[0-9]+", nms)))
+    ddd_es <- data.frame(
+      event_time = evt_vals,
+      estimate   = as.numeric(b[nms]),
+      se         = sqrt(diag(V)[nms]),
+      stringsAsFactors = FALSE
+    ) %>%
+      filter(!is.na(event_time)) %>%
+      mutate(
+        ci_lower = estimate - 1.96 * se,
+        ci_upper = estimate + 1.96 * se
+      ) %>%
+      arrange(event_time)
+
+    # Overall DDD (post 1-6 month average); SE from same-model vcov
+    post_evt <- 1:6
+    post_row <- ddd_es %>% filter(event_time %in% post_evt) %>% arrange(event_time)
+    ddd_post_avg <- NA_real_
+    ddd_post_se  <- NA_real_
+    if (nrow(post_row) >= 1L) {
+      w <- rep(1 / nrow(post_row), nrow(post_row))
+      ddd_post_avg <- sum(w * post_row$estimate)
+      post_nms <- paste0("event_time::", post_row$event_time, ":G_g")
+      post_nms <- post_nms[post_nms %in% rownames(V)]
+      if (length(post_nms) == length(w)) {
+        Vsub <- V[post_nms, post_nms, drop = FALSE]
+        ddd_post_se <- sqrt(drop(t(w) %*% Vsub %*% w))
+      } else {
+        ddd_post_se <- sqrt(sum(w^2 * post_row$se^2))
+      }
+      results_list[["DDD (adult−child, post 1-6)"]] <- list(att = ddd_post_avg, se = ddd_post_se)
+    }
+
+    cat("\n--- DDD result (adult − child) ---\n")
+    cat(sprintf("  Post 1-6 month average: % .4f (SE = %.4f)\n", ddd_post_avg, ddd_post_se))
+    cat("  [Negative => policy reduced adult participation more than child.]\n\n")
+    cat("=== DDD event-study (θ_k by event time k) ===\n")
+    print(ddd_es)
+    cat("\n")
+
+    # Plot
+    ddd_es_plot <- ddd_es %>% filter(event_time >= -6, event_time <= 6)
+    p_ddd <- ggplot(ddd_es_plot, aes(x = event_time, y = estimate)) +
+      geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), fill = "gray85", alpha = 0.7) +
+      geom_line(linewidth = 1.2, color = "#0072B2") +
+      geom_point(size = 2.6, color = "#0072B2") +
+      geom_vline(xintercept = 0, color = "black", linewidth = 0.9) +
+      geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+      scale_x_continuous(breaks = seq(-6, 6, by = 2)) +
+      labs(
+        title = "DDD Event-Study: ABAWD Enforcement (Adult vs Child)",
+        subtitle = "Single regression: θ_k = (D^k × G_g); FE = county×group + time×group",
+        x = "Months relative to first enforcement",
+        y = "DDD (adult − child)"
+      ) +
+      theme_bw(base_size = 14) +
+      theme(
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold")
+      )
+    ggsave(file.path(outdir, "fig_es_ddd_adult_child.png"), p_ddd, width = 8, height = 5, dpi = 300)
+    cat("[✓] DDD event-study plot saved: fig_es_ddd_adult_child.png\n")
+
+    write_csv(ddd_es, file.path(outdir, "ddd_event_study.csv"))
+    cat("[✓] DDD event-study coefficients saved: ddd_event_study.csv\n")
+  }, error = function(e) {
+    cat("[!] DDD estimation failed:", conditionMessage(e), "\n")
+  })
+}
 
 cat("\n╔", strrep("═", 60), "╗\n", sep = "")
 cat("║", sprintf("%-60s", " ANALYSIS COMPLETE"), "║\n", sep = "")

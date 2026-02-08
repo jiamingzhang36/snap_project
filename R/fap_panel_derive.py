@@ -1,7 +1,8 @@
 """
 Derive log and share variables from FAP merged panel; check and fix identity consistency.
 
-Input:  FAP_ALL_YEARS_COMBINED_MERGED.csv (county, year, month, cases, recipients, ...)
+Input:  FAP_ALL_YEARS_COMBINED_MERGED.numbers (preferred) or .csv
+        (county, year, month, cases, recipients, ...)
 Output: fap_panel_derived.csv with ln(cases), ln(recipients), ln(payments),
         adult_share, child_share, and identity-consistent avg columns.
 
@@ -19,6 +20,9 @@ from pathlib import Path
 BASE = Path(__file__).resolve().parent.parent
 DATA_CLEAN = BASE / "data_clean"
 FAP_DIR = BASE / "FAP"
+IN_NUMBERS = DATA_CLEAN / "FAP_ALL_YEARS_COMBINED_MERGED.numbers"
+if not IN_NUMBERS.exists():
+    IN_NUMBERS = FAP_DIR / "FAP_ALL_YEARS_COMBINED_MERGED.numbers"
 IN_CSV = DATA_CLEAN / "FAP_ALL_YEARS_COMBINED_MERGED.csv"
 if not IN_CSV.exists():
     IN_CSV = FAP_DIR / "FAP_ALL_YEARS_COMBINED_MERGED.csv"
@@ -26,10 +30,45 @@ OUT_CSV = DATA_CLEAN / "fap_panel_derived.csv"
 DIAG_CSV = DATA_CLEAN / "fap_identity_diagnostics.csv"
 
 
+def _load_numbers(path: Path) -> pd.DataFrame:
+    """Load first sheet of a .numbers file into a DataFrame. Requires: pip install numbers-parser"""
+    try:
+        from numbers_parser import Document
+    except ImportError:
+        raise ImportError(
+            "Reading .numbers requires: pip install numbers-parser (macOS: brew install snappy if needed)"
+        )
+    doc = Document(str(path))
+    table = doc.sheets[0].tables[0]
+    rows = table.rows(values_only=True)
+    if not rows:
+        raise ValueError(f"Empty table in {path}")
+    headers = [(h or "").strip() for h in rows[0]]
+    df = pd.DataFrame(rows[1:], columns=headers)
+    # drop completely empty rows
+    df = df.dropna(how="all")
+    return df
+
+
+def _load_raw() -> pd.DataFrame:
+    """Load raw panel: prefer .numbers, fallback to .csv."""
+    if IN_NUMBERS.exists():
+        print(f"Using source: {IN_NUMBERS}")
+        df = _load_numbers(IN_NUMBERS)
+        # Normalize column names to match CSV (strip, lowercase) so "County"/"Year" etc. work
+        df.columns = [str(c).strip().lower() for c in df.columns]
+        return df
+    if IN_CSV.exists():
+        print(f"Using source: {IN_CSV}")
+        return pd.read_csv(IN_CSV, dtype={"county": str})
+    raise FileNotFoundError(
+        f"Input not found. Put either FAP_ALL_YEARS_COMBINED_MERGED.numbers or .csv in:\n  {DATA_CLEAN}\n  or {FAP_DIR}"
+    )
+
+
 def main():
-    if not IN_CSV.exists():
-        raise FileNotFoundError(f"Input CSV not found: {DATA_CLEAN / 'FAP_ALL_YEARS_COMBINED_MERGED.csv'} or {FAP_DIR / 'FAP_ALL_YEARS_COMBINED_MERGED.csv'}")
-    df = pd.read_csv(IN_CSV, dtype={"county": str})
+    df = _load_raw()
+    df["county"] = df["county"].astype(str)
     df["year"] = pd.to_numeric(df["year"], errors="coerce")
     df["month"] = pd.to_numeric(df["month"], errors="coerce")
 
