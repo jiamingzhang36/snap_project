@@ -579,3 +579,7 @@ cat("   • Apply exp(tau_i_total) - 1 to get multiplicative effect\n")
 cat("\n", strrep("=", 60), "\n")
 cat("✅ STEP 2 COMPLETE\n")
 cat(strrep("=", 60), "\n\n")
+
+
+
+

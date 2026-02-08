@@ -1,0 +1,10 @@
+spec,att,se,notes
+main,-0.39537010220185337,0.1108857157063941,Callaway-Sant'Anna DR-DiD (main)
+drop_small,NA,NA,Drop small cohorts (≤4 units)
+alt_Y,NA,NA,Alternative outcome measure
+window_2015_2018,NA,NA,Alternative time window (2015-2018)
+nevertreated,NA,NA,Never-treated control group
+drop_big,NA,NA,Drop large counties (Wayne)
+placebo,NA,NA,Placebo test (pre-period)
+event_study,NA,NA,Manual event-study (fixest)
+simple_did,-0.07955889761218327,NA,Simple aggregate DiD
