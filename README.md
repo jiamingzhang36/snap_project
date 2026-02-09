@@ -14,7 +14,7 @@ The analysis is designed for **policy evaluation**, **causal inference**, and **
 
 ## 🧮 Methods
 1. **Staggered Difference-in-Differences (DiD)**  
-   - Implements the Callaway & Sant’Anna (2021) estimator to identify the average treatment effects of the work requirement rollout.  
+   - Implements the Callaway & Sant'Anna (2021) estimator to identify the average treatment effects of the work requirement rollout.  
    - Controls for county and time fixed effects.  
    - Robust to staggered treatment timing.
 
