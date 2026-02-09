@@ -23,7 +23,12 @@ set.seed(123)
 # Setup
 #############################
 
-root   <- "/Users/jiamingzhang/Desktop/snap_project"
+if (file.exists("config/paths.R")) {
+  source("config/paths.R", local = TRUE)
+  root <- ROOT
+} else {
+  root <- normalizePath(if (file.exists("snap_project.Rproj")) "." else "..", winslash = "/", mustWork = TRUE)
+}
 outdir <- file.path(root, "outputs", "step1_did")
 infile <- file.path(root, "data_clean", "panel_with_G.csv")
 

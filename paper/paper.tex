@@ -1,0 +1,53 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage[margin=1in]{geometry}
+
+\title{Assessing the Impacts of SNAP Work Requirements in Michigan}
+\author{Jiaming Zhang \\ Department of Agricultural, Food, and Resource Economics \\ Michigan State University}
+\date{\today}
+
+\begin{document}
+\maketitle
+\begin{abstract}
+We evaluate the effects of the reinstated ABAWD work requirement policy in Michigan using a county-month panel (2016--2019). We use the Callaway--Sant'Anna estimator for staggered DiD, DDD (adult vs.\ child), and report event-study and robustness results. Heterogeneity is analyzed via DML; we also provide forecast and risk outputs.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+(Add your introduction.)
+
+\section{Data and empirical strategy}
+\label{sec:methods}
+(Add data description and identification.)
+
+\section{Results}
+
+\subsection{ABAWD enforcement: main specification}
+Main event-study (CS, anticipation = 2). See outputs in \texttt{outputs/step1\_did/}.
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../outputs/step1_did/fig_es_main}
+  \caption{Event-study: months relative to first enforcement.}
+  \label{fig:es_main}
+\end{figure}
+
+\subsection{DDD: adult vs.\ child}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../outputs/step1_did/fig_es_ddd_adult_child}
+  \caption{DDD event-study (adult minus child).}
+  \label{fig:ddd}
+\end{figure}
+
+\section{Conclusion}
+(Add conclusion.)
+
+% Uncomment when you add \cite{} in the text:
+% \bibliographystyle{plain}
+% \bibliography{refs}
+\end{document}

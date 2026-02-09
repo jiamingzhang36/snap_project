@@ -1,0 +1,53 @@
+\documentclass[11pt]{beamer}
+\usetheme{Madrid}
+\usecolortheme{default}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{booktabs}
+
+\title{Assessing the Impacts of SNAP Work Requirements in Michigan}
+\author{Jiaming Zhang}
+\institute{MSU, AFRE}
+\date{\today}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}{Motivation}
+  \begin{itemize}
+    \item ABAWD work requirement reinstatement in Michigan (county-month rollout).
+    \item Goal: causal effects on SNAP participation and related outcomes.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Methods}
+  \begin{itemize}
+    \item Callaway--Sant'Anna staggered DiD.
+    \item DDD: adult vs.\ child recipients.
+    \item Event-study; robustness checks.
+    \item DML for heterogeneity; forecast and risk (optional).
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Main event-study}
+  \begin{center}
+    \includegraphics[width=0.9\textwidth]{../outputs/step1_did/fig_es_main}
+  \end{center}
+\end{frame}
+
+\begin{frame}{DDD: adult vs.\ child}
+  \begin{center}
+    \includegraphics[width=0.9\textwidth]{../outputs/step1_did/fig_es_ddd_adult_child}
+  \end{center}
+\end{frame}
+
+\begin{frame}{Summary}
+  \begin{itemize}
+    \item (Add main takeaways.)
+    \item Code \& structure: \texttt{main.R} $\to$ \texttt{R/99\_run/run\_all.R}.
+  \end{itemize}
+\end{frame}
+
+\end{document}
