@@ -14,6 +14,9 @@ data_raw/
 *.sav
 *.dta
 
+# Derived data (rebuilt by 01_build and downstream steps)
+data/derived/
+
 # Intermediates you don't want to track by default
 data_clean/*.fst
 data_clean/*.parquet
