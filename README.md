@@ -36,15 +36,14 @@ The analysis is designed for **policy evaluation**, **causal inference**, and **
 | Step | Status | Outputs |
 |------|--------|---------|
 | **Step 1 – ABAWD DID** | Done | `outputs/step1_did/` (CS + DDD, event-study, robustness) |
-| **Step 2 – DML/BLP** | Done | `outputs/step2_dml/` |
-| **Step 3 – 2025 forecast** | Done | `outputs/step3_forecast/` |
-| **Step 4 – Individual risk** | Script exists | `R/04_individual_risk.R` |
-| **Paper structure** | In place | `config/`, `R/01_build`–`05_forecast_2026`, `R/99_run` (some stubs) |
+| **Step 2 – DML/BLP** | (stub) | `outputs/step2_dml/` |
+| **Step 3 – 2026 OBBA 政策影响** | (stub) | `R/05_forecast_2026/`（55–64 岁扩展 + 豁免收紧，非简单外推） |
+| **Paper structure** | In place | `config/`, `R/01_build`–`05_forecast_2026`, `R/99_run` |
 
 - **Config:** `config/paths.R`, `config/globals.R` — ROOT, data paths, policy dates, variable names.
 - **Build:** `R/01_build/` — 01_clean_snap → `panel_base.rds`; 02_clean_laus → `panel_with_laus.rds`; 03_merge_panel → `panel_analysis.rds` (migration: reads `data_clean/panel_with_G.csv`).
 - **ABAWD:** `R/02_abawd/` — event_time, event-study (stub calls `R/01_did_cs.R` for full run), figures → `outputs/figures/abawd_*.png`.
-- **Income / EA / Forecast:** `R/03_income/`, `R/04_ea/`, `R/05_forecast_2026/` — stubs; implement as needed.
+- **Income / EA:** `R/03_income/`, `R/04_ea/` — 已实现。**05_forecast_2026**：2026 联邦 OBBA 政策情景（ABAWD 扩至 55–64 岁、豁免收紧），见 `R/05_forecast_2026/README.md`；当前为 stub，待实现。
 - **Run:** `R/99_run/run_all.R` — runs 01_build → 02_abawd → 03_income → 04_ea → 05_forecast_2026 in order.
 
 ---
