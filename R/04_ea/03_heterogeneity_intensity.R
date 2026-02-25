@@ -1,13 +1,19 @@
 # R/04_ea/03_heterogeneity_intensity.R
-# Input:  data/derived/ea_avgpp_es.rds, data_clean/fap_panel_derived.csv
+# Input:  data_clean/fap_panel_derived.csv
 # Output: outputs/tables/ea_heterogeneity_intensity.csv
-# Heterogeneity: compare post-EA change by pre-EA avg benefit intensity (median split).
+# Appendix: pre/post mean comparison by intensity (median split). Main intensity DID is in 02.
 
 source("config/paths.R", local = TRUE)
 source("R/00_utils/packages.R", local = TRUE)
 if (!exists("PATH_EA_POLICY")) source("config/globals.R", local = TRUE)
 
 ea_end_date <- as.Date("2023-03-01")
+if (exists("ea_policy_dates") && nrow(ea_policy_dates) > 0) {
+  idx <- which(ea_policy_dates$event == "EA_end")
+  if (length(idx) > 0) ea_end_date <- as.Date(ea_policy_dates$date[idx[1]])
+}
+ea_ym <- as.integer(lubridate::year(ea_end_date)) * 12L + as.integer(lubridate::month(ea_end_date))
+
 PATH_FAP <- file.path(DIR_DATA_CLEAN, "fap_panel_derived.csv")
 stopifnot(file.exists(PATH_FAP))
 if (!dir.exists(DIR_OUT_TABLES)) dir.create(DIR_OUT_TABLES, recursive = TRUE)
@@ -18,7 +24,7 @@ fap <- fap %>%
     date = as.Date(paste(year, month, "01", sep = "-")),
     id = as.character(county),
     id_num = as.integer(factor(county)),
-    event_time_raw = as.integer(round((as.numeric(date) - as.numeric(ea_end_date)) / 30.44))
+    event_time_raw = as.integer(year) * 12L + as.integer(month) - ea_ym
   )
 avgpp_col <- "average per person"
 if (!avgpp_col %in% names(fap)) avgpp_col <- "average per case"

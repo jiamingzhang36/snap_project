@@ -13,6 +13,7 @@ if (exists("ea_policy_dates") && nrow(ea_policy_dates) > 0) {
   idx <- which(ea_policy_dates$event == "EA_end")
   if (length(idx) > 0) ea_end_date <- as.Date(ea_policy_dates$date[idx[1]])
 }
+ea_ym <- as.integer(lubridate::year(ea_end_date)) * 12L + as.integer(lubridate::month(ea_end_date))
 
 PATH_FAP <- file.path(DIR_DATA_CLEAN, "fap_panel_derived.csv")
 stopifnot(file.exists(PATH_FAP))
@@ -24,7 +25,7 @@ fap <- fap %>%
     date = as.Date(paste(year, month, "01", sep = "-")),
     id = as.character(county),
     id_num = as.integer(factor(county)),
-    event_time_raw = as.integer(round((as.numeric(date) - as.numeric(ea_end_date)) / 30.44))
+    event_time_raw = as.integer(year) * 12L + as.integer(month) - ea_ym
   )
 # Outcome: average per person (dollars). Column name may have space.
 avgpp_col <- NULL

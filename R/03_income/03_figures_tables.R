@@ -16,8 +16,8 @@ p <- ggplot2::ggplot(df, ggplot2::aes(x = lag, y = estimate)) +
   ggplot2::geom_point(size = 2.6, color = "#0072B2") +
   ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
   ggplot2::labs(
-    title = "Distributed-lag: Unemployment → SNAP (log 1+ recipients per 1k, 18–49)",
-    subtitle = paste0("Lags 0–", dl_model$lag_max, " of unemployment rate; county + month FE. N = ", dl_model$n_obs),
+    title = "Distributed-lag: Unemployment shock (YoY change) → SNAP (log 1+ recipients)",
+    subtitle = paste0("Lags 0–", dl_model$lag_max, " of du_yoy (12-mo change); county + month FE. N = ", dl_model$n_obs),
     x = "Lag (months)",
     y = "Coefficient"
   ) +
