@@ -7,5 +7,6 @@ source("R/06_food_behavior/03_robustness_abawd_behavior.R", local = new.env())
 source("R/06_food_behavior/04_heterogeneity_urban_rural.R", local = new.env())
 source("R/06_food_behavior/05_ea_event_study_behavior.R", local = new.env())
 source("R/06_food_behavior/06_unemployment_dl_behavior.R", local = new.env())
+source("R/06_food_behavior/99_organize_outputs.R", local = new.env())
 
 message("food behavior pipeline done")

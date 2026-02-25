@@ -21,11 +21,11 @@ Rscript R/06_food_behavior/run_food_behavior.R
 ```
 
 ## Key outputs
-- `outputs/tables/food_behavior_event_study_abawd.csv`
-- `outputs/tables/food_behavior_robustness_abawd.csv`
-- `outputs/tables/food_behavior_heterogeneity_urban_rural_summary.csv`
-- `outputs/tables/food_behavior_ea_its_results.csv`
-- `outputs/tables/food_behavior_unemp_dl_cumulative.csv`
+- `outputs/food_behavior/tables/food_behavior_event_study_abawd.csv`
+- `outputs/food_behavior/tables/food_behavior_robustness_abawd.csv`
+- `outputs/food_behavior/tables/food_behavior_heterogeneity_urban_rural_summary.csv`
+- `outputs/food_behavior/tables/food_behavior_ea_its_results.csv`
+- `outputs/food_behavior/tables/food_behavior_unemp_dl_cumulative.csv`
 
 Notes:
 - Current customized extract has no `452311` supercenter rows.

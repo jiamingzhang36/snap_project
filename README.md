@@ -24,6 +24,11 @@ Run all:
 Rscript R/99_run/run_all.R
 ```
 
+Strict run (pipeline + quality gates):
+```bash
+bash scripts/run_pipeline_strict.sh
+```
+
 ## Data paths
 - Core paths defined in: `config/paths.R`
 - Main derived panel: `data/derived/panel_analysis.rds`
@@ -34,12 +39,31 @@ Rscript R/99_run/run_all.R
 - Forecast module: `R/05_forecast_2026/README.md`
 - Food behavior module: `R/06_food_behavior/README.md`
 - Paper build: `paper/README.md`
+- Research-material folders (non-pipeline): `SNAP policy/README.md`, `report/README.md`
 
 ## Food behavior quick outputs
-- `outputs/tables/food_behavior_event_study_abawd.csv`
-- `outputs/tables/food_behavior_robustness_abawd.csv`
-- `outputs/tables/food_behavior_heterogeneity_urban_rural_summary.csv`
-- `outputs/tables/food_behavior_ea_its_results.csv`
-- `outputs/tables/food_behavior_unemp_dl_cumulative.csv`
+- `outputs/food_behavior/tables/food_behavior_event_study_abawd.csv`
+- `outputs/food_behavior/tables/food_behavior_robustness_abawd.csv`
+- `outputs/food_behavior/tables/food_behavior_heterogeneity_urban_rural_summary.csv`
+- `outputs/food_behavior/tables/food_behavior_ea_its_results.csv`
+- `outputs/food_behavior/tables/food_behavior_unemp_dl_cumulative.csv`
 
 Current note: in the current Michigan-only unemployment DL (lags 0..6), cumulative `fast_food_visits_log1p` effect is not statistically significant.
+
+Project cleanup note:
+- canonical food behavior outputs now live under `outputs/food_behavior/` (tables + figures)
+- data inventory for active vs archived files: `doc/food_behavior_file_inventory.md` and `dewey-downloads/snap/README.md`
+
+## Rigor check (skill-based)
+Run the project rigor audit skill:
+```bash
+python3 /Users/jiamingzhang/.codex/skills/project-rigor-check/scripts/rigor_check.py --root /Users/jiamingzhang/Desktop/snap_project
+```
+Reports:
+- `outputs/logs/rigor_check_latest.md`
+- `outputs/logs/rigor_check_latest.json`
+
+## Minimal workflow files
+- `PROJECT_RULES.md` (project constitution)
+- `scripts/quality_gates.py` (local quality gates, fail-fast)
+- `scripts/run_pipeline_strict.sh` (one-command strict run)

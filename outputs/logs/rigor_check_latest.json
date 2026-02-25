@@ -1,0 +1,36 @@
+{
+  "generated_at": "2026-02-24 20:58:58",
+  "root": "/Users/jiamingzhang/Desktop/snap_project",
+  "checks": [
+    {
+      "name": "required_canonical_files",
+      "status": "PASS",
+      "detail": "all required files exist"
+    },
+    {
+      "name": "no_stray_food_behavior_outputs",
+      "status": "PASS",
+      "detail": "no stray files in outputs/tables|figures"
+    },
+    {
+      "name": "data_active_archive_split",
+      "status": "PASS",
+      "detail": "active=['michigan_county_weekly_behavior_panel.parquet', 'michigan_only.parquet', 'michigan_only_with_county.parquet']; archive=['michigan_county_weekly.parquet', 'michigan_county_weekly_by_type.parquet', 'michigan_county_weekly_core.parquet']"
+    },
+    {
+      "name": "csv_rowcount_sanity",
+      "status": "PASS",
+      "detail": "all key csv have >0 rows"
+    },
+    {
+      "name": "junk_artifacts",
+      "status": "PASS",
+      "detail": "none"
+    }
+  ],
+  "summary": {
+    "fail": 0,
+    "warn": 0,
+    "pass": 5
+  }
+}
