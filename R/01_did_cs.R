@@ -29,129 +29,17 @@ if (file.exists("config/paths.R")) {
 } else {
   root <- normalizePath(if (file.exists("snap_project.Rproj")) "." else "..", winslash = "/", mustWork = TRUE)
 }
-outdir <- file.path(root, "outputs", "step1_did")
+if (!exists("outdir")) outdir <- file.path(root, "outputs", "step1_did")
 infile <- file.path(root, "data_clean", "panel_with_G.csv")
 
 if (!dir.exists(outdir)) dir.create(outdir, recursive = TRUE)
-stopifnot(file.exists(infile))
-
-panel_raw <- read_csv(infile, show_col_types = FALSE)
-
-############################################################
-# Helper Functions
-############################################################
-
-build_analysis_df <- function(Y_COL,
-                              start_date = as.Date("2014-01-01"),
-                              end_date   = as.Date("2019-12-01")) {
-  COVARS <- c("unemployment_rate")
-  
-  # Check if Y_COL exists in the data
-  if (!Y_COL %in% names(panel_raw)) {
-    available_cols <- grep("^y_", names(panel_raw), value = TRUE)
-    stop(sprintf("Column '%s' not found in panel data.\nAvailable y_* columns: %s\n\nPlease regenerate panel_with_G.csv by running R/01_clean_other.R",
-                 Y_COL, paste(available_cols, collapse = ", ")))
-  }
-  
-  # Check required columns exist
-  required_cols <- c("date", "id", "G", Y_COL, "unemployment_rate", "population_18_49")
-  missing_cols <- setdiff(required_cols, names(panel_raw))
-  if (length(missing_cols) > 0) {
-    stop(sprintf("Missing required columns: %s\nAvailable columns: %s",
-                 paste(missing_cols, collapse = ", "),
-                 paste(head(names(panel_raw), 20), collapse = ", ")))
-  }
-  
-  df <- panel_raw %>%
-    mutate(
-      date   = as.Date(date),
-      t      = year(date) * 12L + month(date),
-      id_num = as.integer(factor(id)),
-      G_int = case_when(
-        is.na(G) ~ 0L,
-        G == "0" ~ 0L,
-        TRUE ~ {
-          g_chr <- as.character(G)
-          yy   <- as.integer(substr(g_chr, 1, 4))
-          mm   <- as.integer(substr(g_chr, 6, 7))
-          ifelse(is.na(yy) | is.na(mm), 0L, yy * 12L + mm)
-        }
-      ),
-      # Construct outcome Y cleanly (avoid double-logging)
-      # Strategy: For rate columns, always apply log1p transformation explicitly.
-      # If Y_COL starts with "y_log", it's already logged - use as-is (for robustness checks).
-      Y = if (Y_COL %in% c("y_per1k_18_49", "y_per1k_total", "y_per100_lf")) {
-        # Rate outcome: apply log1p transformation (main specification)
-        log1p(as.numeric(.data[[Y_COL]]))
-      } else if (grepl("^y_log", Y_COL, ignore.case = TRUE)) {
-        # Already logged in dataset: use as-is (DO NOT apply log again!)
-        # Used for robustness checks that compare different transformations
-        as.numeric(.data[[Y_COL]])
-      } else if (Y_COL == "y_raw" && "population_18_49" %in% names(.data)) {
-        # Raw counts: convert to rate then log1p
-        y_rate <- (as.numeric(.data[[Y_COL]]) / pmax(as.numeric(.data[["population_18_49"]]), 1)) * 1000
-        log1p(y_rate)
-      } else {
-        # Fallback: use column as-is (assume it's already in desired form)
-        as.numeric(.data[[Y_COL]])
-      },
-      unemployment_rate = as.numeric(unemployment_rate),
-      population_18_49  = as.numeric(population_18_49)
-    ) %>%
-    filter(date >= start_date, date <= end_date, !is.na(Y)) %>%
-    filter(complete.cases(across(all_of(COVARS))))
-  
-  cat(sprintf("[build] Rows: %d | Units: %d | Treated: %s\n",
-              nrow(df), n_distinct(df$id_num), any(df$G_int > 0)))
-  
-  df
+# Allow caller (e.g. 02_abawd/02_estimate_event_study.R) to inject panel_raw from panel_analysis.rds
+if (!exists("panel_raw")) {
+  stopifnot(file.exists(infile))
+  panel_raw <- read_csv(infile, show_col_types = FALSE)
 }
 
-run_cs_did <- function(df, anticipation = 2, control_group = "notyettreated") {
-  # Use covariate when possible; if pre-treatment design is singular (small cohorts),
-  # re-run without covariate so we keep all units and all cohorts.
-  att <- tryCatch(
-    att_gt(
-      yname          = "Y",
-      tname          = "t",
-      idname         = "id_num",
-      gname          = "G_int",
-      xformla        = ~ unemployment_rate,
-      data           = df,
-      panel          = TRUE,
-      control_group  = control_group,
-      est_method     = "dr",
-      anticipation   = anticipation,
-      allow_unbalanced_panel = TRUE
-    ),
-    error = function(e) {
-      if (grepl("singular|design matrix", conditionMessage(e), ignore.case = TRUE)) {
-        message("[CS] Pre-treatment design singular with covariate; using all units without covariate.")
-        att_gt(
-          yname          = "Y",
-          tname          = "t",
-          idname         = "id_num",
-          gname          = "G_int",
-          xformla        = NULL,
-          data           = df,
-          panel          = TRUE,
-          control_group  = control_group,
-          est_method     = "dr",
-          anticipation   = anticipation,
-          allow_unbalanced_panel = TRUE
-        )
-      } else {
-        stop(e)
-      }
-    }
-  )
-  list(
-    att     = att,
-    overall = aggte(att, type = "simple"),
-    es      = aggte(att, type = "dynamic", cband = TRUE, balance_e = 6,
-                    min_e = -6, max_e = 6)
-  )
-}
+source("R/00_utils/helpers_did.R", local = TRUE)
 
 event_study_df <- function(es) {
   # Use crit.val.egt for uniform confidence bands (not crit.val)
@@ -288,7 +176,9 @@ cat("╚", strrep("═", 60), "╝\n\n", sep = "")
 # Main spec uses Ant=2: treatment window includes -2, -1 months (anticipation effects)
 # This aligns with SA (ref.p=c(-3, -1)) and TWFE (treat_post_ant2) for fair comparison
 Y_MAIN <- "y_per1k_18_49"
-df_main <- build_analysis_df(Y_MAIN)
+df_main <- build_analysis_df(panel_raw, Y_MAIN)
+cat(sprintf("[build] Rows: %d | Units: %d | Treated: %s\n",
+            nrow(df_main), n_distinct(df_main$id_num), any(df_main$G_int > 0)))
 
 res_main <- run_cs_did(df_main, anticipation = 2)
 overall_main <- res_main$overall

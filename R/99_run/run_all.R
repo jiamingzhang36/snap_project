@@ -20,6 +20,7 @@ source("R/01_build/03_merge_panel.R", local = new.env())
 message("=== 02_abawd ===")
 source("R/02_abawd/01_construct_event_time.R", local = new.env())
 source("R/02_abawd/02_estimate_event_study.R", local = new.env())
+source("R/02_abawd/04_heterogeneity.R", local = new.env())
 source("R/02_abawd/03_figures_tables.R", local = new.env())
 
 message("=== 03_income ===")
@@ -37,5 +38,13 @@ message("=== 05_forecast_2026 ===")
 source("R/05_forecast_2026/01_baseline_model.R", local = new.env())
 source("R/05_forecast_2026/02_scenarios.R", local = new.env())
 source("R/05_forecast_2026/03_outputs_maps.R", local = new.env())
+
+message("=== 06_food_behavior (optional) ===")
+food_path <- file.path(ROOT, "dewey-downloads", "snap", "michigan_county_weekly_behavior_panel.parquet")
+if (file.exists(food_path)) {
+  source("R/06_food_behavior/run_food_behavior.R", local = new.env())
+} else {
+  message("Skip 06_food_behavior: ", food_path, " not found.")
+}
 
 message("=== run_all done ===")

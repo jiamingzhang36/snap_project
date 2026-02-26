@@ -9,11 +9,11 @@
 | **data/raw/** | data_clean/ + FAP/ | Raw data read-only; policy timing in abawd_waiver_timing.csv, ea_policy_dates.csv |
 | **data/derived/** | data_clean/*.csv as RDS | panel_base.rds, panel_with_laus.rds, **panel_analysis.rds** = single entry for downstream |
 | **data/external/** | (new) | RUCC, industry, etc. |
-| **R/01_build/** | R/01_clean_other.R, 01_clean_acs.R | 01_clean_snap → panel_base; 02_clean_laus → panel_with_laus; 03_merge_panel → panel_analysis (currently reads data_clean/panel_with_G.csv) |
+| **R/01_build/** | — | 01_clean_snap → panel_base; 02_clean_laus → panel_with_laus; 03_merge_panel → panel_analysis (reads data_clean/panel_with_G.csv) |
 | **R/02_abawd/** | R/01_did_cs.R | 01 event_time; 02 estimation = 01_did_cs logic; 03 copy figures to outputs/figures/abawd_*.png |
 | **R/03_income/** | (todo) | Unemployment shock DL, heterogeneity |
 | **R/04_ea/** | (todo) | EA end event-study, intensity heterogeneity |
-| **R/05_forecast_2026/** | R/03_forecast_2025.R, 02_dml_blp.R | 2026 scenario forecast |
+| **R/05_forecast_2026/** | — | 2026 scenario forecast |
 | **outputs/tables/** | outputs/step1_did/*.csv etc | Naming: abawd_*, income_*, ea_*, forecast_* |
 | **outputs/figures/** | outputs/step1_did/*.png, fap_overview/*.png | Same |
 | **R/99_run/run_all.R** | (new) | Sources 01_build → 02_abawd → … → 05_forecast_2026 in order |
@@ -30,7 +30,7 @@
 2. **panel_with_laus.rds** — + unemp_rate, du_yoy, etc.
 3. **panel_analysis.rds** — + log_*, adult_share, G, y_per1k_18_49, etc.; **ABAWD/DDD, income, EA, forecast all read from here**.
 
-During migration **03_merge_panel.R** reads data_clean/panel_with_G.csv and writes panel_analysis.rds, so 01_clean_other.R can stay unchanged.
+During migration **03_merge_panel.R** reads data_clean/panel_with_G.csv and writes panel_analysis.rds.
 
 ## Next steps to implement
 
