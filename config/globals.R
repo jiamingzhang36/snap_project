@@ -11,15 +11,6 @@ if (file.exists(PATH_ABAWD_TIMING)) {
   abawd_timing <- NULL
 }
 
-# EA policy dates
-PATH_EA_POLICY <- file.path(DIR_RAW, "ea_policy_dates.csv")
-if (file.exists(PATH_EA_POLICY)) {
-  ea_policy_dates <- read.csv(PATH_EA_POLICY, stringsAsFactors = FALSE)
-  # Expected cols: event, date
-} else {
-  ea_policy_dates <- data.frame(event = "EA_end", date = "2023-03-01", stringsAsFactors = FALSE)
-}
-
 # 2026 OBBA (federal): ABAWD work requirements expand to age 55–64 (was 18–54); reduced state discretionary exemptions.
 # 05_forecast_2026 = impact under this new policy, not simple time-series forecast.
 OBBA_EFFECTIVE_DATE   <- as.Date("2026-01-01")

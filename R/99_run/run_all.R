@@ -1,4 +1,4 @@
-# R/99_run/run_all.R — Run full pipeline
+# R/99_run/run_all.R — Run full pipeline (ABAWD paper scope)
 # From project root: setwd("path/to/snap_project"); source("R/99_run/run_all.R")
 
 # Ensure we are at project root (contains config/ and R/)
@@ -21,30 +21,13 @@ message("=== 02_abawd ===")
 source("R/02_abawd/01_construct_event_time.R", local = new.env())
 source("R/02_abawd/02_estimate_event_study.R", local = new.env())
 source("R/02_abawd/04_heterogeneity.R", local = new.env())
+source("R/02_abawd/05_stabilizer.R", local = new.env())
 source("R/02_abawd/03_figures_tables.R", local = new.env())
-
-message("=== 03_income ===")
-source("R/03_income/01_estimate_dl_unemp.R", local = new.env())
-source("R/03_income/02_heterogeneity_unemp.R", local = new.env())
-source("R/03_income/03_figures_tables.R", local = new.env())
-
-message("=== 04_ea ===")
-source("R/04_ea/01_event_study_avg_benefit.R", local = new.env())
-source("R/04_ea/02_event_study_participation.R", local = new.env())
-source("R/04_ea/03_heterogeneity_intensity.R", local = new.env())
-source("R/04_ea/04_figures_tables.R", local = new.env())
 
 message("=== 05_forecast_2026 ===")
 source("R/05_forecast_2026/01_baseline_model.R", local = new.env())
 source("R/05_forecast_2026/02_scenarios.R", local = new.env())
 source("R/05_forecast_2026/03_outputs_maps.R", local = new.env())
-
-message("=== 06_food_behavior (optional) ===")
-food_path <- file.path(ROOT, "dewey-downloads", "snap", "michigan_county_weekly_behavior_panel.parquet")
-if (file.exists(food_path)) {
-  source("R/06_food_behavior/run_food_behavior.R", local = new.env())
-} else {
-  message("Skip 06_food_behavior: ", food_path, " not found.")
-}
+source("R/05_forecast_2026/04_vulnerability_index.R", local = new.env())
 
 message("=== run_all done ===")
