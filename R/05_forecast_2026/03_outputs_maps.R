@@ -16,24 +16,35 @@ if (!file.exists(path_scenarios)) {
 }
 
 fc <- readRDS(path_scenarios)
-scenarios <- fc$scenarios
+# Use baseline scenario for plots; all_scenarios has all 3 scenarios
+scenarios <- fc$scenarios_baseline
+if (is.null(scenarios)) scenarios <- fc$all_scenarios
+if (is.null(scenarios) || nrow(scenarios) == 0) {
+  message("05_forecast_2026/03: scenarios data is empty. Skipping.")
+  quit(save = "no", status = 0)
+}
 
 if (!dir.exists(DIR_OUT_FIGURES)) dir.create(DIR_OUT_FIGURES, recursive = TRUE)
 if (!dir.exists(DIR_OUT_TABLES))  dir.create(DIR_OUT_TABLES, recursive = TRUE)
 
-# Summary table: state-level and by-county stats
-summary_state <- scenarios %>%
-  dplyr::summarise(
-    n_counties   = dplyr::n(),
-    mean_delta_log = mean(.data$delta_log, na.rm = TRUE),
-    mean_pct_change = mean(.data$pct_change_log, na.rm = TRUE),
-    sum_baseline_y_raw = sum(.data$baseline_y_raw, na.rm = TRUE),
-    sum_obba_y_raw_approx = sum(.data$obba_y_raw_approx, na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  dplyr::mutate(level = "state")
-readr::write_csv(summary_state, path_summary)
-message("Wrote ", path_summary)
+# Summary table (already computed in 02_scenarios.R; regenerate for safety)
+if (!is.null(fc$summary)) {
+  readr::write_csv(fc$summary, path_summary)
+  message("Wrote ", path_summary, " (from pre-computed summary)")
+} else {
+  summary_state <- scenarios %>%
+    dplyr::summarise(
+      n_counties   = dplyr::n(),
+      mean_delta_log = mean(.data$delta_log, na.rm = TRUE),
+      mean_pct_change = mean(.data$pct_change_log, na.rm = TRUE),
+      sum_baseline_y_raw = sum(.data$baseline_y_raw, na.rm = TRUE),
+      sum_obba_y_raw_approx = sum(.data$obba_y_raw_approx, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    dplyr::mutate(level = "state")
+  readr::write_csv(summary_state, path_summary)
+  message("Wrote ", path_summary)
+}
 
 # Figure: (1) Bar plot of counties by predicted % change (log scale); (2) Histogram of delta_log
 scenarios_plot <- scenarios %>%
