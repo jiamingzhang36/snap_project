@@ -33,29 +33,35 @@ def main():
 
     gates = []
 
+    # Gate 1: Required files exist
     required = [
         root / "README.md",
         root / "PROJECT_RULES.md",
         root / "R" / "99_run" / "run_all.R",
-        root / "R" / "06_food_behavior" / "run_food_behavior.R",
-        root / "dewey-downloads" / "snap" / "michigan_county_weekly_behavior_panel.parquet",
-        root / "outputs" / "food_behavior" / "tables" / "food_behavior_event_study_abawd.csv",
-        root / "outputs" / "food_behavior" / "tables" / "food_behavior_robustness_abawd.csv",
-        root / "outputs" / "food_behavior" / "tables" / "food_behavior_unemp_dl_cumulative.csv",
+        root / "config" / "paths.R",
+        root / "config" / "globals.R",
+        root / "R" / "02_abawd" / "01_construct_event_time.R",
+        root / "R" / "02_abawd" / "02_estimate_event_study.R",
+        root / "R" / "05_forecast_2026" / "01_baseline_model.R",
+        root / "R" / "05_forecast_2026" / "02_scenarios.R",
     ]
     miss = [str(p) for p in required if not p.exists()]
     gates.append(Gate("required_files", "PASS" if not miss else "FAIL", "ok" if not miss else f"missing={miss}"))
 
+    # Gate 2: No stray food_behavior or archived module outputs in main outputs/
     stray = []
     for d in [root / "outputs" / "tables", root / "outputs" / "figures"]:
         if d.exists():
             stray.extend([str(p) for p in d.glob("food_behavior_*")])
-    gates.append(Gate("no_stray_food_behavior", "PASS" if not stray else "FAIL", "ok" if not stray else f"stray={stray}"))
+            stray.extend([str(p) for p in d.glob("income_*")])
+            stray.extend([str(p) for p in d.glob("ea_*")])
+    gates.append(Gate("no_stray_archived_outputs", "PASS" if not stray else "FAIL", "ok" if not stray else f"stray={stray}"))
 
+    # Gate 3: Key ABAWD and forecast CSV outputs are non-empty
     key_csv = [
-        root / "outputs" / "food_behavior" / "tables" / "food_behavior_event_study_abawd.csv",
-        root / "outputs" / "food_behavior" / "tables" / "food_behavior_robustness_abawd.csv",
-        root / "outputs" / "food_behavior" / "tables" / "food_behavior_unemp_dl_main.csv",
+        root / "outputs" / "tables" / "abawd_heterogeneity.csv",
+        root / "outputs" / "tables" / "forecast_2026_scenarios.csv",
+        root / "outputs" / "tables" / "forecast_2026_summary.csv",
     ]
     bad = []
     for p in key_csv:
@@ -64,6 +70,7 @@ def main():
             bad.append((str(p), n))
     gates.append(Gate("key_csv_nonempty", "PASS" if not bad else "FAIL", "ok" if not bad else f"bad={bad}"))
 
+    # Gate 4: No junk files
     junk = list(root.rglob(".DS_Store")) + list(root.rglob(".Rapp.history"))
     gates.append(Gate("junk_files", "PASS" if not junk else "WARN", "ok" if not junk else f"count={len(junk)}"))
 

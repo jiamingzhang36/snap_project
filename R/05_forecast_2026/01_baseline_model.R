@@ -1,6 +1,6 @@
 # R/05_forecast_2026/01_baseline_model.R
 # Purpose: Baseline under current ABAWD rules (18–54). Used to compare vs 2026 OBBA in 02_scenarios.
-# Input:  data/derived/panel_analysis.rds, outputs/step1_did/did_summary_results_final.csv, data/derived/unemp_dl_model.rds
+# Input:  data/derived/panel_analysis.rds, outputs/step1_did/did_summary_results_final.csv
 # Output: data/derived/forecast_baseline.rds, outputs/tables/forecast_backtest.csv
 
 source("config/paths.R", local = TRUE)
@@ -8,7 +8,6 @@ source("R/00_utils/packages.R", local = TRUE)
 
 path_panel   <- file.path(DIR_DERIVED, "panel_analysis.rds")
 path_did     <- file.path(ROOT, "outputs", "step1_did", "did_summary_results_final.csv")
-path_dl      <- file.path(DIR_DERIVED, "unemp_dl_model.rds")
 out_rds      <- file.path(DIR_DERIVED, "forecast_baseline.rds")
 out_backtest <- file.path(DIR_OUT_TABLES, "forecast_backtest.csv")
 
@@ -33,14 +32,7 @@ if (file.exists(path_did)) {
 }
 message("DID ATT (main): ", round(did_att, 4), " (SE ", round(did_se, 4), ")")
 
-# --- 2) DL model (unemployment → SNAP outcome) ---
-dl_model <- NULL
-if (file.exists(path_dl)) {
-  dl_model <- readRDS(path_dl)
-  message("DL model: lags 0-", dl_model$lag_max, ", n_obs = ", dl_model$n_obs)
-}
-
-# --- 3) County-level baseline (last 12 months mean of outcome_final and y_raw) ---
+# --- 2) County-level baseline (last 12 months mean of outcome_final and y_raw) ---
 last_date <- max(panel$date, na.rm = TRUE)
 cutoff    <- last_date - 12 * 30  # ~12 months
 panel_tail <- panel %>%
@@ -66,7 +58,7 @@ last_month <- panel %>%
 county_baseline <- county_baseline %>%
   dplyr::left_join(last_month, by = "id")
 
-# --- 4) Backtest: naive forecast vs actual (holdout last 6 months) ---
+# --- 3) Backtest: naive forecast vs actual (holdout last 6 months) ---
 holdout_start <- last_date - 6 * 30
 train <- panel %>% dplyr::filter(.data$date < holdout_start)
 backtest_df <- panel %>%
@@ -92,11 +84,10 @@ if (!dir.exists(DIR_OUT_TABLES)) dir.create(DIR_OUT_TABLES, recursive = TRUE)
 readr::write_csv(backtest_metrics, out_backtest)
 message("Backtest: RMSE(log) = ", round(backtest_metrics$value[1], 4), ", n_obs = ", backtest_metrics$value[3])
 
-# --- 5) Save ---
+# --- 4) Save ---
 forecast_baseline <- list(
   did_att         = did_att,
   did_se          = did_se,
-  dl_model        = dl_model,
   county_baseline = county_baseline,
   backtest_metrics = backtest_metrics,
   last_date       = last_date,

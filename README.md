@@ -1,69 +1,63 @@
-# Michigan SNAP Policy Analysis
+# Michigan SNAP ABAWD County Vulnerability Analysis
 
-Single entry README for this repo. Module-level READMEs only contain local run notes.
+County-level vulnerability assessment under expanded ABAWD work requirements (2026 OBBA).
 
-## What this repo does
-- ABAWD policy evaluation (DID/event-study)
-- Income-unemployment dynamics (distributed lag)
-- EA-related analyses
-- 2026 OBBA forecast scenario (module scaffold)
-- Food behavior outcomes from Dewey mobility data
+## Research question
 
-## Canonical pipeline
-- Main runner: `R/99_run/run_all.R`
-- Typical order:
-  1. `R/01_build/` (build analysis panel)
-  2. `R/02_abawd/` (ABAWD DID/event-study)
-  3. `R/03_income/` (unemployment DL)
-  4. `R/04_ea/` (EA analyses)
-  5. `R/05_forecast_2026/` (OBBA scenarios)
-  6. `R/06_food_behavior/` (optional; only runs if Dewey parquet exists)
+Under expanded ABAWD work requirements, which Michigan counties are most vulnerable to SNAP participation losses, and what county characteristics predict larger projected losses?
 
-Run all:
-```bash
-Rscript R/99_run/run_all.R
+## Pipeline
+
+Three-module pipeline: data construction → ABAWD event-study → 2026 forecast/vulnerability.
+
+```
+01_build: FAP raw data → county-month panel (panel_analysis.rds)
+02_abawd: Staggered DID event-study + heterogeneity + stabilizer analysis
+05_forecast_2026: OBBA scenarios + uncertainty + county vulnerability ranking
 ```
 
-Strict run (pipeline + quality gates):
+### Run
+
 ```bash
-bash scripts/run_pipeline_strict.sh
+Rscript R/99_run/run_all.R              # full pipeline
+Rscript R/99_run/run_paper_outputs.R    # paper figures/tables only (fast)
+bash scripts/run_pipeline_strict.sh     # pipeline + quality gates
 ```
+
+## Key outputs
+
+| File | Description |
+|------|-------------|
+| `outputs/tables/abawd_heterogeneity.csv` | ATT by county subgroup (6 dimensions) |
+| `outputs/tables/abawd_heterogeneity_interactions.csv` | Continuous interaction coefficients |
+| `outputs/tables/abawd_stabilizer_correlation.csv` | SNAP-unemployment elasticity vs ABAWD effect |
+| `outputs/tables/forecast_2026_scenarios.csv` | 3 OBBA scenarios (baseline/recession/recovery) |
+| `outputs/tables/county_vulnerability_ranking.csv` | 83 counties ranked with uncertainty |
+| `outputs/figures/abawd_es_main.png` | Main event-study plot |
+| `outputs/figures/abawd_heterogeneity_forest.png` | Subgroup ATT forest plot |
+| `outputs/figures/vulnerability_ranking_dotplot.png` | Top 30 vulnerable counties |
+| `outputs/figures/vulnerability_map.png` | Michigan choropleth map |
 
 ## Data paths
-- Core paths defined in: `config/paths.R`
+
+- Central config: `config/paths.R`, `config/globals.R`
 - Main derived panel: `data/derived/panel_analysis.rds`
-- Food behavior input parquet expected at:
-  - `dewey-downloads/snap/michigan_county_weekly_behavior_panel.parquet`
+- Raw FAP data: `FAP/` (957 county-year CSVs)
+- Intermediate: `data_clean/` (read by 01_build)
+- (Optional) County age shares: `data/external/acs_age_shares_MI.csv`
 
-## Module readmes
-- Forecast module: `R/05_forecast_2026/README.md`
-- Food behavior module: `R/06_food_behavior/README.md`
+## Module READMEs
+
+- Forecast: `R/05_forecast_2026/README.md`
 - Paper build: `paper/README.md`
-- Research-material folders (non-pipeline): `SNAP policy/README.md`, `report/README.md`
 
-## Food behavior quick outputs
-- `outputs/food_behavior/tables/food_behavior_event_study_abawd.csv`
-- `outputs/food_behavior/tables/food_behavior_robustness_abawd.csv`
-- `outputs/food_behavior/tables/food_behavior_heterogeneity_urban_rural_summary.csv`
-- `outputs/food_behavior/tables/food_behavior_ea_its_results.csv`
-- `outputs/food_behavior/tables/food_behavior_unemp_dl_cumulative.csv`
+## Quality gates
 
-Current note: in the current Michigan-only unemployment DL (lags 0..6), cumulative `fast_food_visits_log1p` effect is not statistically significant.
-
-Project cleanup note:
-- canonical food behavior outputs now live under `outputs/food_behavior/` (tables + figures)
-- data inventory for active vs archived files: `doc/food_behavior_file_inventory.md` and `dewey-downloads/snap/README.md`
-
-## Rigor check (skill-based)
-Run the project rigor audit skill:
 ```bash
-python3 /Users/jiamingzhang/.codex/skills/project-rigor-check/scripts/rigor_check.py --root /Users/jiamingzhang/Desktop/snap_project
+python3 scripts/quality_gates.py --root .
 ```
-Reports:
-- `outputs/logs/rigor_check_latest.md`
-- `outputs/logs/rigor_check_latest.json`
 
-## Minimal workflow files
-- `PROJECT_RULES.md` (project constitution)
-- `scripts/quality_gates.py` (local quality gates, fail-fast)
-- `scripts/run_pipeline_strict.sh` (one-command strict run)
+## Archived modules
+
+Non-ABAWD analyses (income DL, EA event-study, food behavior) are preserved in `_archive/`.
+See `_archive/README.md` for restoration instructions.
