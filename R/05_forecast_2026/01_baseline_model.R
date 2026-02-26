@@ -1,13 +1,13 @@
 # R/05_forecast_2026/01_baseline_model.R
 # Purpose: Baseline under current ABAWD rules (18–54). Used to compare vs 2026 OBBA in 02_scenarios.
-# Input:  data/derived/panel_analysis.rds, outputs/step1_did/did_summary_results_final.csv
+# Input:  data/derived/panel_analysis.rds, outputs/step1_did/robustness_complete.csv
 # Output: data/derived/forecast_baseline.rds, outputs/tables/forecast_backtest.csv
 
 source("config/paths.R", local = TRUE)
 source("R/00_utils/packages.R", local = TRUE)
 
 path_panel   <- file.path(DIR_DERIVED, "panel_analysis.rds")
-path_did     <- file.path(ROOT, "outputs", "step1_did", "did_summary_results_final.csv")
+path_did     <- file.path(ROOT, "outputs", "step1_did", "robustness_complete.csv")
 out_rds      <- file.path(DIR_DERIVED, "forecast_baseline.rds")
 out_backtest <- file.path(DIR_OUT_TABLES, "forecast_backtest.csv")
 
@@ -24,10 +24,11 @@ did_att <- NA_real_
 did_se  <- NA_real_
 if (file.exists(path_did)) {
   did_summary <- readr::read_csv(path_did, show_col_types = FALSE)
-  main_row    <- did_summary %>% dplyr::filter(.data$spec == "main")
+  # robustness_complete.csv has columns: Specification, ATT, SE, ...
+  main_row <- did_summary %>% dplyr::filter(grepl("^Main", .data$Specification))
   if (nrow(main_row) > 0) {
-    did_att <- main_row$att[1]
-    did_se  <- main_row$se[1]
+    did_att <- main_row$ATT[1]
+    did_se  <- main_row$SE[1]
   }
 }
 message("DID ATT (main): ", round(did_att, 4), " (SE ", round(did_se, 4), ")")

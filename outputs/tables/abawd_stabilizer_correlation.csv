@@ -1,0 +1,8 @@
+metric,value
+pearson_r,-0.45613430700895574
+p_value,1.466449453021653e-5
+n_counties,83
+mean_elasticity,0.03252217449362312
+sd_elasticity,0.01899638783633364
+mean_att_variation,4.8488656195978224e-18
+sd_att_variation,0.04731759444983612
