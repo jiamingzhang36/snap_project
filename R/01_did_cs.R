@@ -171,7 +171,7 @@ cat("\n╔", strrep("═", 60), "╗\n", sep = "")
 cat("║", sprintf("%-60s", " MAIN SPECIFICATION"), "║\n", sep = "")
 cat("╚", strrep("═", 60), "╝\n\n", sep = "")
 
-# Main specification: use rate column and apply log1p transformation explicitly
+# Main specification: use rate column and apply log transformation explicitly
 # This ensures consistency between Y definition and plot labels
 # Main spec uses Ant=2: treatment window includes -2, -1 months (anticipation effects)
 # This aligns with SA (ref.p=c(-3, -1)) and TWFE (treat_post_ant2) for fair comparison
@@ -854,8 +854,8 @@ if (!all(ddd_cols_need %in% names(panel_raw))) {
     # G_sa: never-treated get max(t)+1000 so event_time is always "pre"
     wide_ddd <- wide_ddd %>%
       mutate(
-        Y_adult = log1p(adult_recipients),
-        Y_child = log1p(child_recipients),
+        Y_adult = log(adult_recipients),
+        Y_child = log(child_recipients),
         G_sa    = ifelse(G_int == 0L, max(t, na.rm = TRUE) + 1000L, G_int),
         event_time_raw = as.integer(t - G_sa)
       )

@@ -1,0 +1,124 @@
+\ifx\undefined\bysame
+\newcommand{\bysame}{\leavevmode\hbox to\leftmargin{\hrulefill\,\,}}
+\fi
+\begin{thebibliography}{xx}
+
+\harvarditem[Bauer et al.]{Bauer, Schanzenbach and
+  Shambaugh}{2018}{bauer_schanzenbach_shambaugh2018}
+{\bf Bauer, Lauren, Diane~Whitmore Schanzenbach, and Jay Shambaugh}, ``Work
+  Requirements and Safety Net Programs,'' Technical Report, The Hamilton
+  Project, Brookings Institution 2018.
+
+\harvarditem[Bitler and Hoynes]{Bitler and Hoynes}{2016}{bitler_hoynes2016}
+{\bf Bitler, Marianne and Hilary~W. Hoynes}, ``The More Things Change, the More
+  They Stay the Same? {T}he Safety Net and Poverty in the {Great Recession},''
+  {\it Journal of Labor Economics}, 2016, {\it 34} (S1), S403--S444.
+
+\harvarditem[Borusyak et al.]{Borusyak, Jaravel and Spiess}{2024}{borusyak2024}
+{\bf Borusyak, Kirill, Xavier Jaravel, and Jann Spiess}, ``Revisiting
+  event-study designs: Robust and efficient estimation,'' {\it Review of
+  Economic Studies}, 2024, {\it 91} (6), 3253--3285.
+
+\harvarditem[Callaway and Sant'Anna]{Callaway and
+  Sant'Anna}{2021}{callaway_sant2021}
+{\bf Callaway, Brantly and Pedro H.~C. Sant'Anna}, ``Difference-in-differences
+  with multiple time periods,'' {\it Journal of Econometrics}, 2021, {\it 225}
+  (2), 200--230.
+
+\harvarditem[Cameron et al.]{Cameron, Gelbach and
+  Miller}{2011}{cameron_gelbach_miller2011}
+{\bf Cameron, A.~Colin, Jonah~B. Gelbach, and Douglas~L. Miller}, ``Robust
+  Inference with Multiway Clustering,'' {\it Journal of Business \& Economic
+  Statistics}, 2011, {\it 29} (2), 238--249.
+
+\harvarditem[Card et al.]{Card, Kluve and Weber}{2018}{card_kluve_weber2018}
+{\bf Card, David, Jochen Kluve, and Andrea Weber}, ``What Works? {A} Meta
+  Analysis of Recent Active Labor Market Program Evaluations,'' {\it Journal of
+  the European Economic Association}, 2018, {\it 16} (3), 894--931.
+
+\harvarditem[Cengiz et al.]{Cengiz, Dube, Lindner and
+  Zipperer}{2019}{cengiz_dube_lindner_zipperer2019}
+{\bf Cengiz, Doruk, Arindrajit Dube, Attila Lindner, and Ben Zipperer}, ``The
+  Effect of Minimum Wages on Low-Wage Jobs,'' {\it Quarterly Journal of
+  Economics}, 2019, {\it 134} (3), 1405--1454.
+
+\harvarditem[{Congressional Budget Office}]{{Congressional Budget
+  Office}}{2023}{cbo2023}
+{\bf {Congressional Budget Office}}, ``Estimated Budgetary Effects of the
+  {Fiscal Responsibility Act} of 2023,'' Technical Report, Congressional Budget
+  Office 2023.
+
+\harvarditem[Cunnyngham]{Cunnyngham}{2019}{cunnyngham2019}
+{\bf Cunnyngham, Karen}, ``Reaching Those in Need: Estimates of State {SNAP}
+  Participation Rates in 2016,'' {\it Mathematica Policy Research}, 2019.
+
+\harvarditem[de~Chaisemartin and D'Haultf{\oe}uille]{de~Chaisemartin and
+  D'Haultf{\oe}uille}{2020}{de_chaisemartin_dhaultfoeuille2020}
+{\bf de~Chaisemartin, Cl{\'e}ment and Xavier D'Haultf{\oe}uille}, ``Two-way
+  fixed effects estimators with heterogeneous treatment effects,'' {\it
+  American Economic Review}, 2020, {\it 110} (9), 2964--2996.
+
+\harvarditem[Farber]{Farber}{2011}{farber2011}
+{\bf Farber, Henry~S.}, ``Job Loss in the {Great Recession}: Historical
+  Perspective from the {Displaced Workers Survey}, 1984--2010,'' Working Paper
+  17040, National Bureau of Economic Research 2011.
+
+\harvarditem[Ganong and Liebman]{Ganong and Liebman}{2018}{ganong_liebman2018}
+{\bf Ganong, Peter and Jeffrey~B. Liebman}, ``The Decline, Rebound, and Further
+  Rise in {SNAP} Enrollment: Disentangling Business Cycle Fluctuations and
+  Policy Changes,'' {\it American Economic Journal: Economic Policy}, 2018,
+  {\it 10} (4), 153--176.
+
+\harvarditem[Gardner]{Gardner}{2022}{gardner2022}
+{\bf Gardner, John}, ``Two-stage differences in differences,'' {\it Review of
+  Economic Studies}, 2022.
+\newblock Forthcoming.
+
+\harvarditem[Goodman-Bacon]{Goodman-Bacon}{2021}{goodman_bacon2021}
+{\bf Goodman-Bacon, Andrew}, ``Difference-in-differences with variation in
+  treatment timing,'' {\it Journal of Econometrics}, 2021, {\it 225} (2),
+  254--277.
+
+\harvarditem[Harris]{Harris}{2021}{harris2021}
+{\bf Harris, Timothy}, ``Do {SNAP} Work Requirements Work?,'' {\it Economic
+  Inquiry}, 2021, {\it 59} (1), 72--94.
+
+\harvarditem[Hoynes and Schanzenbach]{Hoynes and
+  Schanzenbach}{2012}{hoynes_schanzenbach2012}
+{\bf Hoynes, Hilary~W. and Diane~Whitmore Schanzenbach}, ``Work Incentives and
+  the {Food Stamp Program},'' {\it Journal of Public Economics}, 2012, {\it 96}
+  (1--2), 151--162.
+
+\harvarditem[Keith-Jennings et al.]{Keith-Jennings, Llobrera and
+  Dean}{2019}{keith_jennings2019}
+{\bf Keith-Jennings, Brynne, Joseph Llobrera, and Stacy Dean}, ``{SNAP} Is
+  Linked with Improved Health Outcomes and Lower Health Care Costs,'' Technical
+  Report, Center on Budget and Policy Priorities 2019.
+
+\harvarditem[Neumark et al.]{Neumark, Burn and
+  Button}{2019}{neumark_burn_button2019}
+{\bf Neumark, David, Ian Burn, and Patrick Button}, ``Is It Harder for Older
+  Workers to Find Jobs? {N}ew and Improved Evidence from a Field Experiment,''
+  {\it Journal of Political Economy}, 2019, {\it 127} (2), 922--970.
+
+\harvarditem[Rambachan and Roth]{Rambachan and Roth}{2023}{rambachan_roth2023}
+{\bf Rambachan, Ashesh and Jonathan Roth}, ``A more credible approach to
+  parallel trends,'' {\it Review of Economic Studies}, 2023, {\it 90} (5),
+  2555--2591.
+
+\harvarditem[Rosenbaum]{Rosenbaum}{2019}{rosenbaum2019}
+{\bf Rosenbaum, Dottie}, ``{SNAP}'s 3-Month Time Limit: Combating Hunger or
+  Penalizing Poverty?,'' Technical Report, Center on Budget and Policy
+  Priorities 2019.
+
+\harvarditem[Stacy et al.]{Stacy, Scherpf and Jo}{2018}{stacy_scherpf_jo2018}
+{\bf Stacy, Brian, Erik Scherpf, and Young Jo}, ``The Impact of {SNAP} Work
+  Requirements,'' Economic Research Report ERR-251, USDA Economic Research
+  Service 2018.
+
+\harvarditem[Sun and Abraham]{Sun and Abraham}{2021}{sun_abraham2021}
+{\bf Sun, Liyang and Sarah Abraham}, ``Estimating dynamic treatment effects in
+  event studies with heterogeneous treatment effects,'' {\it Journal of
+  Econometrics}, 2021, {\it 225} (2), 175--199.
+
+\end{thebibliography}

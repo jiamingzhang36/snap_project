@@ -1,0 +1,7 @@
+variable,coef_lambda_min,coef_lambda_1se,selected_min,selected_1se
+bachelor_share,-0.029205464527441386,-0.020983637212668608,TRUE,TRUE
+poverty_rate,0.013610481164991242,0.0053895705564771645,TRUE,TRUE
+unemployment_rate,0,0,FALSE,FALSE
+svi_total,0,0,FALSE,FALSE
+urban_dummy,0,0,FALSE,FALSE
+y_per1k_18_49,0,0,FALSE,FALSE

@@ -4,8 +4,10 @@
 \usepackage{amsmath,amssymb}
 \usepackage{graphicx}
 \usepackage{booktabs}
+\usepackage[authoryear,round]{natbib}
 \usepackage{hyperref}
 \usepackage[margin=1in]{geometry}
+\emergencystretch=1em
 
 \title{County-Level Vulnerability to SNAP Participation Losses\\Under Expanded ABAWD Work Requirements}
 \author{Jiaming Zhang \\ Department of Agricultural, Food, and Resource Economics \\ Michigan State University}
@@ -14,124 +16,807 @@
 \begin{document}
 \maketitle
 \begin{abstract}
-I evaluate the heterogeneous effects of SNAP ABAWD work requirements across Michigan counties, using a county-month panel and Michigan's staggered 2017--2018 reinstatement of time limits. Using the Callaway--Sant'Anna estimator for staggered difference-in-differences, I estimate dynamic participation responses and characterize systematic heterogeneity across counties by unemployment, rurality, poverty, education, social vulnerability, and baseline SNAP dependence. I then translate the estimated heterogeneity into ex-ante projections of county-level participation losses under a 2026 OBBA policy expansion (age 55--64), with uncertainty intervals and alternative labor-market scenarios. The primary output is a county vulnerability ranking that identifies which local areas face the greatest risk of SNAP caseload losses, directly informing implementation planning, targeted outreach, and administrative capacity allocation.
+I evaluate the heterogeneous effects of SNAP ABAWD work requirements across Michigan counties, using a county-month panel and Michigan's staggered 2017--2018 reinstatement of time limits. Using the Callaway--Sant'Anna estimator for staggered difference-in-differences, I estimate dynamic participation responses and characterize systematic heterogeneity across counties by unemployment, rurality, poverty, education, social vulnerability, and baseline SNAP dependence. I then translate the estimated heterogeneity into ex-ante projections of county-level participation losses under a 2026 OBBBA policy expansion (age 55--64), with uncertainty intervals and alternative labor-market scenarios. The primary output is a county vulnerability ranking that identifies which local areas face the greatest risk of SNAP caseload losses, directly informing implementation planning, targeted outreach, and administrative capacity allocation.
 \end{abstract}
 
+\bigskip
+\noindent\textbf{JEL Codes:} I38, H75, C23, R12
+
+\medskip
+\noindent\textbf{Keywords:} SNAP, ABAWD work requirements, staggered difference-in-differences, heterogeneous treatment effects, county vulnerability, policy projection
+
+\bigskip
+\noindent\textbf{Acknowledgments:} I thank my dissertation committee and seminar participants at MSU AFRE for helpful comments.  All errors are my own.
+
+\newpage
 \section{Introduction}
 \label{sec:intro}
-% Research question: Under expanded ABAWD work requirements, which Michigan counties
-% are most vulnerable to SNAP participation losses, and what county characteristics
-% predict larger projected losses?
+
+The Supplemental Nutrition Assistance Program (SNAP) imposes time limits on able-bodied adults without dependents (ABAWDs) aged 18--49: unless an individual works or participates in qualifying activities for at least 80 hours per month, benefits are restricted to three months in a 36-month period.  States may waive these requirements for areas with elevated unemployment, and most did so broadly following the 2008 recession.  As labor markets recovered, waiver eligibility narrowed, forcing a staggered re-imposition of time limits across counties \citep{ganong_liebman2018}.
+
+A pending policy expansion under the One Big Beautiful Bill Act (OBBBA) would extend ABAWD-like work requirements to individuals aged 55--64, a population with lower labor force participation and different barriers to employment.  For state agencies planning this expansion, a central question is: \emph{which counties face the greatest risk of SNAP participation losses, and what county characteristics predict larger projected impacts?}
+
+This paper answers that question in three steps.  First, I estimate the causal effect of ABAWD enforcement on county-level SNAP participation using Michigan's staggered 2017--2018 waiver removal as a natural experiment.  Applying the \citet{callaway_sant2021} estimator for staggered difference-in-differences, I find an overall reduction of approximately 5.8\% in SNAP participation among working-age adults, with effects that accumulate gradually over six months as existing recipients cycle through recertification.
+
+Second, I characterize heterogeneity in treatment effects across counties along five dimensions: unemployment, poverty, education, social vulnerability, and urbanicity.  A key methodological contribution is a three-specification diagnostic that separates genuine within-cohort heterogeneity from spurious patterns driven by treatment-timing selection.  I show that apparent heterogeneity by unemployment rate and urbanicity is entirely an artifact of FNS's waiver removal sequence---strong labor-market counties were treated first---while heterogeneity by education and poverty reflects genuine differential responses.  County-specific predicted treatment effects range from $-0.145$ to $-0.006$ log points.
+
+Third, I translate these estimates into ex-ante county-level projections under the 2026 OBBBA expansion.  Propagating both overall ATT uncertainty and heterogeneity coefficient uncertainty through a joint parametric bootstrap, I project that roughly 10{,}000 individuals statewide (90\% CI: 7{,}200--12{,}600) would lose SNAP benefits, with losses concentrated in counties with high educational attainment and low poverty rates.  The resulting county vulnerability ranking identifies specific jurisdictions requiring targeted outreach, employment assistance, and administrative capacity.
+
+The paper contributes to three literatures.  Within the body of work on SNAP work requirements, it provides the first county-level heterogeneity analysis that controls for treatment-timing confounding---a pervasive threat in staggered policy settings where waiver removal is endogenous to local labor markets.  Within the methodological DiD literature \citep{goodman_bacon2021, de_chaisemartin_dhaultfoeuille2020}, it demonstrates a practical diagnostic for separating genuine heterogeneity from selection artifacts when treatment cohorts are correlated with moderating variables.  And for policy planning, it provides an actionable ranking tool that translates econometric estimates into implementation guidance.
 
 \section{Institutional Background}
 \label{sec:background}
 
-\subsection{ABAWD work requirements in Michigan}
-% Michigan's 2017-2018 phased reinstatement of ABAWD time limits
-% County-level variation in treatment timing
+\subsection{ABAWD work requirements and Michigan's staggered reinstatement}
 
-\subsection{2026 OBBA expansion}
-% Federal OBBA: ABAWD expanded to age 55-64, reduced state discretionary exemptions
+Under Section 6(o) of the Food and Nutrition Act, able-bodied adults without dependents (ABAWDs) aged 18--49 face a three-month time limit on SNAP benefits within any 36-month period unless they meet work requirements of at least 80 hours per month.  States may request waivers from the U.S.\ Department of Agriculture's Food and Nutrition Service (FNS) for areas with insufficient jobs, based on unemployment rates or Labor Surplus Area designations.\footnote{7 CFR \S 273.24(f). Waiver criteria include areas with unemployment above 10\% or 20\% above the national average.}
+
+Michigan maintained a statewide ABAWD waiver through calendar year 2016, covering all 83 counties (FNS Waiver \#2150032).  Beginning in 2017, the Michigan Department of Health and Human Services (MDHHS) implemented a phased reinstatement of time limits as labor markets improved and certain counties no longer qualified for waiver coverage.  The reinstatement proceeded in four cohorts:
+
+\begin{enumerate}
+  \item \textbf{January 2017 (4 counties):} Kent, Oakland, Ottawa, and Washtenaw---the state's strongest labor markets---were excluded from the FY2017 modified waiver, which covered 79 of 83 counties.  ABAWDs in these counties became subject to the three-month time limit effective January~1, 2017.
+
+  \item \textbf{January 2018 (10 counties):} Allegan, Barry, Berrien, Clinton, Eaton, Grand~Traverse, Ingham, Ionia, Kalamazoo, and Livingston were dropped from the FY2018 waiver, reducing coverage to 69 counties.  These predominantly suburban and mid-sized metro counties experienced enforcement starting January~1, 2018.
+
+  \item \textbf{July 2018 (68 counties):} The remaining 68 waived counties entered a \emph{gradual phase-in} beginning July~1, 2018.  Under the FNS-approved transition plan, new ABAWD applicants and individuals reaching their recertification date after July~1 became immediately subject to time limits, while ABAWDs with active certifications retained their waiver status until their next scheduled recertification.
+
+  \item \textbf{October 2018 (1 county):} Wayne County (Detroit metro) received an extended transition, with phase-in beginning October~1, 2018, reflecting its uniquely high unemployment and caseload concentration.
+\end{enumerate}
+
+\noindent The gradual phase-in mechanism for the 68-county cohort is an important institutional detail.  Because enforcement was tied to individual recertification cycles (typically every 6--12 months), the policy ``switched on'' at the county level on a specific date but reached full implementation only as the existing caseload cycled through recertification.  This generates a treatment intensity that increases monotonically over time following the policy effective date---a pattern directly observable in the event-study estimates (Section~\ref{sec:results}).
+
+By the end of 2018, all 83 Michigan counties had active ABAWD time limits.  The same 69-county waiver was renewed for FY2019, but the phase-in process continued for individuals who had not yet been recertified.  In early 2020, federal regulatory changes briefly interrupted coverage, followed by a statewide COVID-19 waiver (August 2020--July 2021) that suspended all time limits.  My analysis window ends in December 2019, prior to the pandemic disruption.
+
+\subsection{The 2026 OBBBA expansion}
+
+The Fiscal Responsibility Act of 2023 \citep{cbo2023} phases in an expansion of ABAWD work requirements to adults aged 50--54 (effective October 2023) and will further expand to ages 55--64 under the proposed One Big Beautiful Bill Act (OBBBA) of 2026.  Simultaneously, state discretionary exemptions---which historically allowed states to shield a percentage of their caseload from time limits---would be substantially reduced.
+
+This expansion is qualitatively different from the 2017--2018 reinstatement in two ways.  First, the affected population (ages 55--64) faces distinct labor-market barriers: lower re-employment rates, higher prevalence of health limitations not meeting disability thresholds, and limited access to retraining programs.  Second, the expansion applies uniformly rather than through county-level waiver removal, meaning county-specific vulnerability depends on the local composition of the SNAP caseload rather than on waiver eligibility.
+
+The empirical strategy of this paper leverages the 2017--2018 staggered reinstatement to estimate heterogeneous treatment effects by county characteristics, then projects these effects onto the 2026 policy expansion using county-specific age-group shares and labor-market conditions.
 
 \section{Data}
 \label{sec:data}
 
 \subsection{Administrative data: Michigan FAP county-month panel}
-% County-month SNAP: cases, recipients, adult/child, average per person/case
-% Window: 2014-01 to 2019-12 (main); extended for forecast baseline
+
+The primary data source is the Michigan Food Assistance Program (FAP) Monthly Statistical Report, which provides county-month observations of SNAP caseloads from January 2014 through December 2019.  For each of Michigan's 83 counties and each month, the data record the number of FAP cases, total recipients, adult recipients, and child recipients, as well as total benefit payments.  I construct the main outcome variable---SNAP recipients per 1{,}000 adults aged 18--49---by dividing adult recipients by the county's working-age population from Census estimates.
+
+The analysis window spans January 2014 to December 2019 (72 months $\times$ 83 counties = 5{,}976 county-month observations in the raw panel; the effective estimation sample is smaller due to the anticipation window and log transformation, yielding approximately 5{,}200 observations in the main specification).  The pre-treatment period (January 2014--December 2016) provides 36 months of baseline data prior to the first cohort's enforcement, while the post-treatment period extends through December 2019, prior to the COVID-19 pandemic waiver.
 
 \subsection{County characteristics}
-% BLS LAUS: unemployment rate
-% ACS: poverty rate, bachelor share, population by age
-% RUCC: rural-urban continuum code
-% SVI: social vulnerability index
+
+I merge the FAP panel with county-level covariates from four sources:
+\begin{itemize}
+  \item \textbf{Labor market conditions:} Monthly unemployment rates from the Bureau of Labor Statistics Local Area Unemployment Statistics (LAUS) program, available at the county-month level.
+  \item \textbf{Socioeconomic characteristics:} Poverty rates and educational attainment (bachelor's degree share among adults 25+) from the American Community Survey (ACS) 5-year estimates, measured at the county-year level and linearly interpolated to monthly frequency.
+  \item \textbf{Rurality:} The USDA Economic Research Service Rural-Urban Continuum Codes (RUCC), which classify counties on a 1--9 scale from large metro to completely rural.  I construct a binary urban indicator (RUCC $\leq$ 3).
+  \item \textbf{Social vulnerability:} The CDC/ATSDR Social Vulnerability Index (SVI), a composite measure incorporating socioeconomic status, household composition, minority status, and housing type.
+\end{itemize}
+All county characteristics are measured prior to or at the start of the treatment window to avoid post-treatment contamination.
+
+Table~\ref{tab:sumstats} reports summary statistics for the estimation sample.  The panel comprises 83 counties observed over 63 months (5{,}229 county-month observations).  The average county has approximately 225 SNAP recipients per 1{,}000 adults aged 18--49, with substantial cross-county variation (SD $= 94.3$; range: 52--580).  The log-transformed outcome has a mean of 5.32 (SD $= 0.45$).
+
+\begin{table}[htbp]
+\centering
+\caption{Summary statistics.}
+\label{tab:sumstats}
+\small
+\begin{tabular}{lcccccc}
+\toprule
+Variable & $N$ & Mean & SD & Min & Median & Max \\
+\midrule
+\multicolumn{7}{l}{\emph{Panel A: Outcome variable}} \\
+SNAP recipients per 1{,}000 adults 18--49 & 5{,}229 & 224.7 & 94.3 & 51.5 & 209.2 & 580.4 \\
+$\log$(SNAP recipients per 1{,}000) & 5{,}229 & 5.322 & 0.446 & 3.942 & 5.343 & 6.364 \\
+Adult recipients (count) & 5{,}229 & 9{,}776 & 29{,}276 & 95 & 2{,}471 & 289{,}019 \\
+\midrule
+\multicolumn{7}{l}{\emph{Panel B: County characteristics}} \\
+Unemployment rate (\%) & 5{,}229 & 5.70 & 2.23 & 2.10 & 5.10 & 24.60 \\
+Poverty rate (\%) & 5{,}229 & 15.66 & 4.13 & 5.20 & 15.50 & 31.80 \\
+Bachelor's share (\%) & 5{,}229 & 21.28 & 8.53 & 8.40 & 18.30 & 55.90 \\
+Social vulnerability index & 5{,}229 & 0.50 & 0.29 & 0.00 & 0.49 & 1.00 \\
+Urban indicator (RUCC $\leq$ 3) & 5{,}229 & 0.36 & 0.48 & 0 & 0 & 1 \\
+Population aged 18--49 & 5{,}229 & 48{,}899 & 91{,}652 & 537 & 18{,}072 & 752{,}864 \\
+\midrule
+\multicolumn{7}{l}{\emph{Panel C: Panel structure}} \\
+\multicolumn{4}{l}{Counties: 83} & \multicolumn{3}{l}{Monthly periods: 63} \\
+\multicolumn{4}{l}{Treatment cohorts: 4} & \multicolumn{3}{l}{Sample: Oct 2014--Dec 2019} \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.3em}
+\parbox{\textwidth}{\small\textit{Notes:} County-month level observations.  SNAP recipients per 1{,}000 is adult (18--49) FAP recipients divided by county working-age population from ACS estimates.  Unemployment rate from BLS LAUS; poverty rate and bachelor's share from ACS 5-year estimates; SVI from CDC/ATSDR.  All 83 Michigan counties are eventually treated (no never-treated group).}
+\end{table}
+
+Table~\ref{tab:balance} presents pre-treatment covariate means by treatment cohort, documenting the systematic selection into treatment timing.  The four counties treated first (January~2017) have the lowest unemployment (3.9\%), highest bachelor's share (40.6\%), and lowest SNAP intensity (114 per 1{,}000).  By contrast, the 68 counties treated in July~2018 have unemployment of 6.7\%, bachelor's share of 18.2\%, and SNAP intensity of 265 per 1{,}000.  This gradient underscores the treatment-timing confounding concern addressed in the heterogeneity analysis.
+
+\begin{table}[htbp]
+\centering
+\caption{Pre-treatment covariate means by treatment cohort (2014--2016 averages).}
+\label{tab:balance}
+\small
+\begin{tabular}{lcccccc}
+\toprule
+Cohort & $n$ & Unemp.\ rate & SNAP/1k & Poverty & Bachelor's & Urban \\
+\midrule
+$G = $ Jan 2017  &  4 & 3.9 & 114 & 12.6 & 40.6 & 1.00 \\
+$G = $ Jan 2018  & 10 & 4.4 & 151 & 13.4 & 27.5 & 0.90 \\
+$G = $ Jul 2018  & 68 & 6.7 & 265 & 17.1 & 18.2 & 0.24 \\
+$G = $ Oct 2018  &  1 & 6.8 & 370 & 24.8 & 22.1 & 1.00 \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.3em}
+\parbox{\textwidth}{\small\textit{Notes:} Pre-treatment (January 2014--December 2016) county-level means.  Unemployment rate is the monthly LAUS average; SNAP/1k is adult SNAP recipients per 1{,}000 population aged 18--49; Poverty is the ACS poverty rate; Bachelor's is the share of adults 25+ with a bachelor's degree; Urban indicates RUCC $\leq$ 3.  The monotonic gradient across cohorts---earlier-treated counties have stronger labor markets and lower SNAP dependence---reflects FNS's waiver removal sequence.}
+\end{table}
 
 \section{Empirical Strategy}
 \label{sec:methods}
 
 \subsection{Staggered difference-in-differences}
-% Callaway-Sant'Anna estimator
-% County and calendar-time fixed effects
-% Pre-trend diagnostics, anticipation = 2, DR estimation
+\label{subsec:did}
+
+I estimate the causal effect of ABAWD time-limit enforcement on county-level SNAP participation using the staggered difference-in-differences framework of \citet{callaway_sant2021}.  The estimand is the group-time average treatment effect on the treated, $ATT(g,t)$, which compares the change in outcomes for counties first treated at calendar time $g$ to the change for counties not yet treated by time $t$.
+
+\paragraph{Treatment timing and control group.}
+Treatment is defined as the first month in which ABAWD time limits take effect in a given county, derived directly from FNS waiver approval documents (Waiver \#2150032).  This yields four treatment cohorts: $g \in \{$January~2017, January~2018, July~2018, October~2018$\}$.  Because all 83 Michigan counties are eventually treated, no ``never-treated'' group exists.  I use \emph{not-yet-treated} counties as the comparison group, following \citet{callaway_sant2021}.  This identification strategy leverages the temporal gap between the earliest cohort (January 2017) and the latest (October 2018)---a 21-month window during which not-yet-treated counties serve as valid counterfactuals.
+
+\paragraph{Outcome variable.}
+The primary outcome is
+\[
+Y_{ct} = \log\bigl(\text{SNAP recipients per 1{,}000 adults aged 18--49}\bigr)_{ct},
+\]
+measured at the county-month level.  Because the minimum county-month value in the sample is approximately 52 per 1{,}000 (i.e., no zeros exist), the natural log is well-defined for all observations.  The log-transformation accommodates the right-skewed distribution of caseload rates and allows the ATT to be interpreted as an approximate percentage change.
+
+\paragraph{Estimation.}
+I estimate $ATT(g,t)$ using the doubly-robust (DR) estimator with the county unemployment rate as a covariate.  I specify an anticipation parameter of two months ($\delta = 2$), reflecting the institutional reality that waiver removal decisions were announced several months in advance: the FY2017 modification was approved on August~30, 2016 (effective January~1, 2017), giving counties approximately four months of advance notice.  With $\delta = 2$, the effective comparison baseline shifts to two months prior to $g$, and periods $g-2$ through $g-1$ are treated as part of the anticipation window.
+
+The group-time $ATT(g,t)$ estimates are then aggregated into: (i) a simple weighted average (the overall ATT), and (ii) a dynamic event-study specification with event time $e \in [-6, +6]$ months relative to the treatment date, with uniform weights within each event time.  Standard errors are clustered at the county level using the analytical variance formulas in \citet{callaway_sant2021}.
+
+\paragraph{Identifying assumptions.}
+The key assumption is conditional parallel trends: in the absence of treatment, the evolution of $Y_{ct}$ would have been the same across counties with different treatment cohorts, conditional on the unemployment rate.  This assumption is partially testable through the pre-treatment event-study coefficients.
+
+\paragraph{Phase-in interpretation.}
+The gradual phase-in mechanism for the 68-county July~2018 cohort (Section~\ref{sec:background}) implies that the ``treatment'' at $e = 0$ represents the policy's effective date rather than the moment of full implementation.  As individuals cycle through recertification over the subsequent 6--12 months, treatment intensity increases.  Consequently, the dynamic event-study estimates should exhibit a gradually increasing magnitude in the post-treatment period, which I verify empirically.  This pattern is not evidence of a violation of the parallel trends assumption, but rather a reflection of the institutional rollout mechanism.
 
 \subsection{Heterogeneity analysis}
-% Subgroup DID: 6 dimensions (median splits)
-% Continuous interaction model: D_ct x Z_c with fixest
-% Automatic stabilizer interpretation
+\label{subsec:het}
+
+I characterize treatment-effect heterogeneity along five county-level dimensions: unemployment rate, poverty rate, educational attainment (bachelor's degree share), social vulnerability (CDC SVI), and urbanicity (RUCC $\leq$ 3).
+
+\paragraph{Treatment-timing confounding.}
+A key identification concern is that treatment timing is endogenous to county characteristics.  FNS removed waivers from counties that no longer met the unemployment-based eligibility criteria, so early-treated counties systematically differ from late-treated ones: the four counties first treated in January~2017 (Kent, Oakland, Ottawa, Washtenaw) have an average unemployment rate of 3.9\% and bachelor's share of 40.6\%, compared to 6.7\% and 18.2\% for the 68 counties treated in July~2018.  The correlation between treatment timing and county characteristics is substantial ($r = -0.65$ for bachelor's share, $r = 0.50$ for unemployment).
+
+Naive interaction models that do not account for this correlation conflate between-cohort differences (driven by treatment selection) with within-cohort heterogeneity (driven by differential responses to the same policy).  To address this, I estimate three specifications of the interaction model and compare them:
+
+\begin{enumerate}
+  \item[\textbf{A.}] \emph{Naive}: $Y_{ct} = \alpha_c + \gamma_t + \beta\, D_{ct} + \delta_k\, (D_{ct} \times Z_{ck}) + \varepsilon_{ct}$
+  \item[\textbf{B.}] \emph{Cohort FE}: $Y_{ct} = \alpha_c + \gamma_t + \sum_g \beta_g\, (D_{ct} \times \mathbf{1}[G_c = g]) + \delta_k\, (D_{ct} \times Z_{ck}) + \varepsilon_{ct}$
+  \item[\textbf{C.}] \emph{Within-cohort}: Specification~A restricted to the 68-county July~2018 cohort, where all counties share the same treatment date, eliminating timing confounds entirely.
+\end{enumerate}
+
+\noindent Specification~B adds cohort-specific treatment intercepts ($\beta_g$), absorbing between-cohort mean effect differences; $\delta_k$ is then identified solely from within-cohort variation in $Z_{ck}$.  I estimate all models with county and year-month fixed effects and county-clustered standard errors.
+
+\paragraph{Automatic stabilizer.}
+To connect heterogeneity to SNAP's role as an automatic stabilizer, I estimate each county's pre-treatment SNAP-unemployment elasticity via OLS of $Y_{ct}$ on the county unemployment rate, controlling for county and time fixed effects, and examine its correlation with the predicted treatment effect.
 
 \subsection{Ex-ante projection methodology}
-% ATT x county-specific share_55_64 → projected caseload loss
-% Parametric bootstrap → 90\% CI for county losses and rankings
-% Alternative labor-market scenarios: baseline, recession, recovery
-% Composite vulnerability index: weighted score
+\label{subsec:projection}
+
+I translate the estimated heterogeneous treatment effects into county-specific projections of participation losses under the 2026 OBBBA expansion.
+
+\paragraph{County-specific ATT prediction.}
+To generate county-level predicted treatment effects, I estimate a joint interaction model (Specification~B with multiple moderators simultaneously).  Of the five moderators examined in the one-at-a-time analysis, three pass the significance filter ($p < 0.10$ in Specification~B): poverty rate, bachelor's share, and SVI.  Because SVI and poverty are highly correlated ($r = 0.79$), I exclude SVI to avoid multicollinearity and retain poverty and bachelor's share as the two moderators in the joint model.  The joint model is:
+\[
+Y_{ct} = \alpha_c + \gamma_t + \sum_g \beta_g\, (D_{ct} \times \mathbf{1}[G_c = g]) + \delta_1\, (D_{ct} \times \tilde{Z}^{\text{bach}}_c) + \delta_2\, (D_{ct} \times \tilde{Z}^{\text{pov}}_c) + \varepsilon_{ct}
+\]
+where $\tilde{Z}^{\text{bach}}_c$ and $\tilde{Z}^{\text{pov}}_c$ are standardized county characteristics, winsorized at $\pm 2$ standard deviations to prevent extreme extrapolation at distribution tails.\footnote{Without winsorization, two counties (Lake and Clare) with Z-scores exceeding 2 in both dimensions receive implausibly small predicted effects from the linear model.  Winsorization clips these to $\pm 2$ SD.}  The county-specific predicted ATT is then:
+\[
+\widehat{ATT}_c = \overline{ATT} + \bigl[\hat{\delta}_1 \tilde{Z}^{\text{bach}}_c + \hat{\delta}_2 \tilde{Z}^{\text{pov}}_c - \overline{\text{variation}}\bigr]
+\]
+where $\overline{ATT}$ is the main CS-DID overall ATT ($-0.060$), and the variation term is mean-centered so that $\overline{\widehat{ATT}_c} = \overline{ATT}$ exactly.  A soft floor at 10\% of the main ATT (${\approx}-0.006$) prevents the linear extrapolation from producing implausibly small effects for extreme-tail counties.
+
+\paragraph{Projected losses.}
+For each county $c$, the projected participation loss under the OBBBA expansion is:
+\begin{equation}
+\widehat{\Delta Y}_c = \widehat{ATT}_c \times S_{c}^{55\text{-}64} \times \overline{Y}_{c,\text{pre}}
+\label{eq:projection}
+\end{equation}
+where $S_{c}^{55\text{-}64}$ is the county's share of SNAP participants aged 55--64 (from ACS estimates) and $\overline{Y}_{c,\text{pre}}$ is the baseline caseload level.  The implementation computes $\Delta\log_c = \widehat{ATT}_c \times S_c$ in log scale and converts to level changes via the inverse log transformation.
+
+\paragraph{Uncertainty quantification.}
+I propagate estimation uncertainty through a joint parametric bootstrap that accounts for two sources of variation.  In each of $B = 2{,}000$ replications, I simultaneously draw: (i)~an overall ATT from $\widehat{ATT}^{(b)} \sim \mathcal{N}(\widehat{ATT}, \widehat{SE}^2)$, and (ii)~heterogeneity coefficients from $\hat{\boldsymbol{\gamma}}^{(b)} \sim \mathcal{N}(\hat{\boldsymbol{\gamma}}, \hat{\boldsymbol{\Sigma}}_\gamma)$, where $\hat{\boldsymbol{\Sigma}}_\gamma$ is the variance-covariance matrix of the interaction coefficients from the joint model.  Each draw produces county-specific ATTs that vary \emph{independently} across counties, yielding a distribution over both loss magnitudes and county rankings.  The 90\% confidence intervals are constructed from the 5th and 95th percentiles.  This joint approach, unlike proportional scaling of a single ATT draw, generates non-degenerate rank uncertainty: 98\% of counties have rank confidence intervals wider than a single position.
+
+\paragraph{Alternative scenarios.}
+I consider three labor-market scenarios: (i) \emph{baseline}---current county unemployment rates; (ii) \emph{recession}---unemployment elevated by 3~pp (calibrated to Michigan's 2008--2009 experience); (iii) \emph{tight labor market}---unemployment reduced by 2~pp.  Each scenario operates through three channels.  First, a \emph{compliance channel}: higher unemployment makes it harder for ABAWDs to meet work requirements, amplifying the ATT magnitude (parameterized as an 8\% increase in ATT per 1~pp of unemployment, conservative relative to the cross-study variation).  Second, an \emph{enrollment channel}: higher unemployment increases baseline SNAP caseloads, using the pre-treatment SNAP-unemployment semi-elasticity of 0.033 log points per pp estimated in the stabilizer analysis.  Third, a \emph{waiver channel}: counties exceeding the 10\% unemployment threshold historically qualify for ABAWD waivers, reducing the effective exposed population by 70\%.
+
+\paragraph{Composite vulnerability index.}
+I construct a summary vulnerability score for each county that combines: projected loss magnitude, baseline SNAP dependence, unemployment rate, social vulnerability, and rurality.  Counties are ranked by this composite score to identify the areas requiring the most intensive policy attention under the 2026 expansion.
+
+\subsection{Robustness and sensitivity analysis}
+\label{subsec:robustness}
+
+I assess the robustness of the main results along three dimensions.
+
+\paragraph{Alternative heterogeneity-robust estimators.}
+Beyond the Callaway--Sant'Anna estimator, I implement two additional estimators designed for staggered adoption settings:
+\begin{itemize}
+  \item The \emph{Gardner (2022) two-stage estimator} (\texttt{did2s}), which first estimates unit and time fixed effects using only not-yet-treated observations, then estimates the treatment effect from the residualized outcome.
+  \item The \emph{Borusyak, Jaravel, and Spiess (2024) imputation estimator} (\texttt{didimputation}), which imputes counterfactual outcomes for treated units based on not-yet-treated observations, with horizon-specific pre-trend and treatment-effect estimates.
+\end{itemize}
+Both estimators accommodate the all-treated setting by leveraging not-yet-treated observations, and produce dynamic event-study estimates comparable to the main specification.  Agreement across estimators strengthens the credibility of the findings.
+
+\paragraph{Sensitivity to parallel trends violations.}
+I apply the \citet{rambachan_roth2023} framework (implemented in \texttt{HonestDiD}) to assess how the conclusions change under controlled violations of the parallel trends assumption.  Specifically, I report the \emph{breakdown value} $\bar{M}^*$: the largest ratio of post-treatment to pre-treatment trend differences at which the confidence interval for the treatment effect still excludes zero.  A large $\bar{M}^*$ indicates that the conclusion is robust to substantial departures from parallel trends.
+
+\paragraph{Additional specifications.}
+I also report estimates varying: (i) the anticipation parameter ($\delta \in \{0, 2, 6\}$); (ii) leave-one-cohort-out exercises to assess the influence of individual treatment cohorts; (iii) two-way clustering by county and month \citep{cameron_gelbach_miller2011}; and (iv) Fisher permutation inference (500 randomization draws) to confirm significance under minimal distributional assumptions.  A LASSO moderator selection exercise validates the choice of heterogeneity moderators.
 
 \section{Results}
 \label{sec:results}
 
 \subsection{Main event-study estimates}
+
+Figure~\ref{fig:es_main} presents the dynamic event-study estimates from the Callaway--Sant'Anna estimator.  Pre-treatment coefficients at event times $e = -6$ through $e = -3$ are uniformly small and statistically insignificant, supporting the conditional parallel trends assumption.  The anticipation window ($e \in \{-2, -1\}$) shows a small downward drift, consistent with counties receiving advance notice of waiver removal and some ABAWDs adjusting behavior in anticipation.
+
+Upon enforcement ($e = 0$), participation drops sharply and continues to decline through $e = 6$.  The overall ATT is approximately $-0.060$ log points (a roughly 5.8\% reduction in SNAP recipients per 1{,}000 adults aged 18--49), statistically significant at the 1\% level.  The monotonically increasing magnitude of post-treatment effects---from $-0.027$ at $e = 0$ to $-0.081$ at $e = 6$---is consistent with the gradual phase-in mechanism described in Section~\ref{sec:background}: as existing ABAWDs cycle through recertification, the share of the caseload subject to time limits grows over time.
+
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.85\textwidth]{../outputs/figures/abawd_es_main}
-  \caption{Event-study: months relative to first ABAWD enforcement.}
+  \caption{Event-study estimates: SNAP recipients per 1{,}000 adults 18--49 (log), relative to first month of ABAWD enforcement.  Dashed vertical line marks enforcement onset.  The 95\% pointwise confidence intervals are based on county-clustered standard errors.  Pre-treatment coefficients ($e \leq -3$) are close to zero, supporting parallel trends.  The gradual increase in post-treatment effects reflects the institutional phase-in through recertification cycles.}
   \label{fig:es_main}
 \end{figure}
 
-\subsection{DDD: adult vs.\ child}
+Table~\ref{tab:main_results} reports the main regression results.  The CS-DID overall ATT of $-0.060$ (SE $= 0.010$) is statistically significant at the 1\% level.  The average post-treatment effect across event times 1--6 is $-0.057$, reflecting the gradual accumulation of the phase-in mechanism.
+
+\begin{table}[htbp]
+\centering
+\caption{Main estimation results: effect of ABAWD enforcement on SNAP participation.}
+\label{tab:main_results}
+\small
+\begin{tabular}{lcc}
+\toprule
+& (1) & (2) \\
+& Overall ATT & Post 1--6 avg \\
+\midrule
+ATT estimate & $-0.060^{***}$ & $-0.057^{***}$ \\
+& $(0.010)$ & $(0.003)$ \\
+\midrule
+Estimator & \multicolumn{2}{c}{Callaway--Sant'Anna (2021)} \\
+Control group & \multicolumn{2}{c}{Not-yet-treated} \\
+Anticipation & \multicolumn{2}{c}{2 months} \\
+Covariate & \multicolumn{2}{c}{Unemployment rate (DR)} \\
+\midrule
+Counties & 83 & 83 \\
+Treatment cohorts & 4 & 4 \\
+Observations & 5{,}229 & 5{,}229 \\
+Outcome mean (log) & 5.322 & 5.322 \\
+Outcome mean (level) & 224.7 & 224.7 \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.3em}
+\parbox{\textwidth}{\small\textit{Notes:} The outcome is $\log(\text{SNAP recipients per 1{,}000 adults 18--49})$.  Column~(1) reports the simple weighted average of all group-time ATTs; Column~(2) reports the average of event-time coefficients at $e = 1$ through $e = 6$.  Standard errors (in parentheses) are clustered at the county level.  $^{***}p<0.01$.}
+\end{table}
+
+\subsection{DDD: adult vs.\ child recipients}
+
+As a placebo and specification check, I estimate a triple-difference (DDD) specification comparing adult recipients (directly subject to ABAWD requirements) to child recipients (unaffected by work requirements) within the same counties.  Figure~\ref{fig:ddd} confirms that the participation decline is concentrated among adults, with no corresponding change among child recipients.  This rules out county-level confounders---such as local economic shocks or administrative changes---that would affect both populations.
+
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.85\textwidth]{../outputs/figures/abawd_es_ddd_adult_child}
-  \caption{DDD event-study (adult minus child recipients).}
+  \caption{DDD event-study: adult minus child SNAP recipients.  The treatment effect is concentrated in the adult subpopulation subject to ABAWD time limits.}
   \label{fig:ddd}
 \end{figure}
 
 \subsection{Heterogeneity: which counties were most affected?}
+\label{subsec:heterogeneity}
+
+Table~\ref{tab:het_confound} presents the central heterogeneity finding.  Comparing the naive interaction coefficients (Specification~A) with the cohort-FE specification (B) and the within-cohort analysis (C) reveals that two of the five moderators are entirely driven by treatment-timing confounding:
+
+\begin{itemize}
+  \item \textbf{Unemployment rate}: The naive $\delta = +0.016$ ($p < 0.05$) collapses to $\delta \approx 0$ ($p > 0.95$) in both Specifications~B and~C.  The apparent pattern---that high-unemployment counties had smaller effects---was an artifact of low-unemployment counties being treated earlier.
+  \item \textbf{Urbanicity}: Similarly, the naive $\delta = -0.034$ ($p < 0.05$) disappears entirely ($\delta = -0.003$, $p > 0.80$) once cohort effects are absorbed.
+\end{itemize}
+
+\noindent Three moderators survive as genuine within-cohort heterogeneity:
+
+\begin{itemize}
+  \item \textbf{Bachelor's share}: $\delta = -0.033$ in Specification~B ($p < 0.01$), $-0.032$ in~C ($p < 0.001$).  A one-SD increase in educational attainment is associated with a 3.3~pp larger treatment effect.  Counties with more educated populations experience larger participation declines, consistent with higher-education ABAWDs having more labor-market alternatives.
+  \item \textbf{Poverty rate}: $\delta = +0.021$ in~B ($p < 0.05$), $+0.023$ in~C ($p < 0.05$).  Higher-poverty counties experience smaller participation losses, potentially because ABAWDs in these areas face greater barriers to compliance and a larger share may qualify for exemptions.
+  \item \textbf{Social vulnerability (SVI)}: $\delta = +0.020$ in~B ($p < 0.05$), $+0.022$ in~C ($p < 0.05$).  Higher SVI---reflecting concentrated disadvantage---attenuates the effect, consistent with the poverty channel.
+\end{itemize}
+
+\begin{table}[htbp]
+\centering
+\caption{Treatment-timing confounding diagnostic: interaction coefficients across specifications.}
+\label{tab:het_confound}
+\small
+\begin{tabular}{lccc}
+\toprule
+& \multicolumn{3}{c}{$\delta_k$ (1-SD $\rightarrow$ $\Delta$ATT)} \\
+\cmidrule(lr){2-4}
+Moderator $Z_k$ & A: Naive & B: Cohort FE & C: Within Jul-18 \\
+\midrule
+Unemployment rate   & $+0.016^{**}$   & $-0.001$         & $-0.000$         \\
+Poverty rate        & $+0.029^{***}$  & $+0.021^{**}$    & $+0.023^{**}$    \\
+Bachelor's share    & $-0.038^{***}$  & $-0.033^{***}$   & $-0.032^{***}$   \\
+Social vulnerability& $+0.026^{***}$  & $+0.020^{**}$    & $+0.022^{**}$    \\
+Urban (binary)      & $-0.034^{**}$   & $-0.003$         & $-0.004$         \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.3em}
+\parbox{\textwidth}{\small\textit{Notes:} Each cell reports $\hat{\delta}_k$ from a separate one-at-a-time regression.  A: $Y_{ct} = \alpha_c + \gamma_t + \beta D_{ct} + \delta_k (D_{ct} \times Z_{ck}) + \varepsilon_{ct}$.  B: adds cohort$\times$post fixed effects ($\beta_g$), so $\delta_k$ reflects within-cohort variation only.  C: restricts the sample to the 68-county July~2018 cohort.  County-clustered standard errors.  $^{*}p<0.10$, $^{**}p<0.05$, $^{***}p<0.01$.}
+\end{table}
+
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.85\textwidth]{../outputs/figures/abawd_heterogeneity_forest}
-  \caption{ABAWD treatment effect heterogeneity by county subgroup.}
-  \label{fig:het_forest}
+  \includegraphics[width=0.85\textwidth]{../outputs/figures/abawd_heterogeneity_interactions}
+  \caption{Treatment-timing confounding diagnostic.  For each moderator, the three specifications are compared.  Unemployment and urbanicity effects disappear once cohort$\times$post fixed effects are included, revealing them as artifacts of treatment-timing selection.  Poverty, bachelor's share, and SVI effects persist across all specifications.}
+  \label{fig:het_confound}
 \end{figure}
 
-% Table: interaction coefficients from abawd_heterogeneity_interactions.csv
-% Table: stabilizer correlation from abawd_stabilizer_correlation.csv
+\paragraph{Data-driven moderator selection.}
+To validate the moderator choice, I apply LASSO regression to the county-level treatment-effect proxy---computed as the difference-in-means of time-demeaned outcomes between post- and pre-treatment periods for each treated county---regressed on all six standardized county characteristics.  The LASSO at both $\lambda_{\min}$ and $\lambda_{1\text{se}}$ selects exactly two variables: bachelor's share ($\hat{\beta} = -0.029$) and poverty rate ($\hat{\beta} = +0.013$), setting the coefficients on unemployment rate, SVI, urbanicity, and baseline SNAP intensity to zero.  An elastic net ($\alpha = 0.5$) confirms the same two-variable selection.  This data-driven result corroborates the hand-picked moderators from the OAT analysis and provides additional evidence that educational attainment and poverty are the genuine moderators of the ABAWD treatment effect, while the other variables---including urbanicity and unemployment---are not independently informative once treatment-timing confounding is removed.
 
-\subsection{County risk ranking under 2026 OBBA}
+\subsection{County risk ranking under 2026 OBBBA}
+
+Table~\ref{tab:forecast_summary} presents the statewide projection under three labor-market scenarios.  Under baseline conditions, the OBBBA expansion to ages 55--64 is projected to reduce SNAP participation by approximately 9{,}900 individuals statewide ($-1.6$\% average county-level change), with a 90\% bootstrap confidence interval of $[7{,}200,\; 12{,}600]$.  Under recession conditions (+3~pp unemployment), projected losses increase by 36\% to approximately 13{,}400 individuals, driven by amplified treatment effects (harder to comply), expanded SNAP enrollment (larger exposed population), and partially offset by waiver protection for 10 counties crossing the 10\% unemployment threshold.  Under tight labor-market conditions ($-2$~pp unemployment), projected losses decrease by 21\% to approximately 7{,}800, as improved employment prospects facilitate compliance and reduce baseline SNAP dependence.
+
+Figure~\ref{fig:vuln_dotplot} displays the top~30 most vulnerable counties by composite score.  Leelanau County ranks first (vulnerability score~0.81), driven by the largest predicted ATT ($\Delta\text{log} = -0.050$) and high baseline SNAP dependence.  Mackinac and Ontonagon Counties rank second and third (scores~0.76 and~0.76), reflecting a combination of high social vulnerability, rurality, and moderate predicted effects.
+
+The ranking by composite vulnerability score differs from the ranking by absolute loss: Wayne County accounts for the largest projected loss in absolute terms (approximately 1{,}700 individuals) due to its population, followed by Oakland (approximately 1{,}500) and Macomb (approximately 1{,}100), but these urban counties rank lower in composite vulnerability because their economic resilience and service infrastructure partially offset the caseload impact.  The rank uncertainty intervals---derived from the joint bootstrap over both the overall ATT and heterogeneity coefficients---indicate that precise county-level ordering is informative for the most and least affected counties, but middle-ranked counties have wider intervals (median rank width: 12~positions), reflecting genuine estimation uncertainty.
+
+Figure~\ref{fig:vuln_map} presents the geographic distribution of vulnerability quintiles.  The highest-vulnerability counties cluster in northern Lower Michigan and the Upper Peninsula, consistent with the interaction between high baseline SNAP dependence and moderate educational attainment in these areas.
+
+\begin{table}[htbp]
+\centering
+\caption{Projected statewide SNAP participation losses under 2026 OBBBA expansion.}
+\label{tab:forecast_summary}
+\small
+\begin{tabular}{lccc}
+\toprule
+Scenario & Mean $\Delta$log & Total loss (persons) & 90\% CI \\
+\midrule
+Baseline            & $-0.016$ & $-9{,}918$  & [$-12{,}652$, $-7{,}263$] \\
+Recession (+3~pp)   & $-0.018$ & $-13{,}440$ & --- \\
+Tight labor ($-2$~pp)& $-0.013$ & $-7{,}805$ & --- \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.3em}
+\parbox{\textwidth}{\small\textit{Notes:} Projections based on county-specific $\widehat{ATT}_c$ from the cohort-FE interaction model, ACS age shares, and baseline caseloads.  The 90\% CI is from 2{,}000 joint parametric bootstrap draws over the overall ATT and heterogeneity coefficients.  Alternative scenarios adjust three channels: (a)~compliance difficulty (ATT scales $\pm8\%$ per pp unemployment); (b)~SNAP enrollment (semi-elasticity 0.033 per pp); (c)~waiver eligibility (counties $\geq 10\%$ unemployment receive 70\% exposure reduction).}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Sensitivity of recession-scenario projected losses to calibration parameters.}
+\label{tab:sensitivity}
+\small
+\begin{tabular}{lcc}
+\toprule
+& Parameter value & Projected loss (persons) \\
+\midrule
+\multicolumn{3}{l}{\emph{Panel A: Compliance elasticity (SNAP-unemp fixed at 0.033)}} \\
+& 0\% per pp   & $-10{,}864$ \\
+& 4\% per pp   & $-12{,}153$ \\
+& \textbf{8\% per pp (baseline)}  & $\mathbf{-13{,}440}$ \\
+& 12\% per pp  & $-14{,}724$ \\
+& 16\% per pp  & $-16{,}006$ \\
+\midrule
+\multicolumn{3}{l}{\emph{Panel B: SNAP-unemp semi-elasticity (compliance fixed at 8\%)}} \\
+& 0.015        & $-12{,}734$ \\
+& 0.025        & $-13{,}122$ \\
+& \textbf{0.033 (baseline)} & $\mathbf{-13{,}440}$ \\
+& 0.045        & $-13{,}933$ \\
+& 0.060        & $-14{,}574$ \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.3em}
+\parbox{\textwidth}{\small\textit{Notes:} One-at-a-time sensitivity for the recession scenario (+3~pp unemployment).  Panel~A varies the compliance elasticity (percentage increase in ATT magnitude per 1~pp unemployment increase) while holding the SNAP-unemployment semi-elasticity at its baseline value of 0.033.  Panel~B varies the semi-elasticity while holding the compliance elasticity at 8\%.  Bold rows indicate the baseline calibration.  The baseline scenario ($-9{,}918$) is invariant to both parameters.}
+\end{table}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.75\textwidth]{../outputs/figures/sensitivity_heatmap}
+  \caption{Two-dimensional sensitivity of recession-scenario projected losses to calibration parameters.  Each cell shows the projected statewide SNAP participation loss under the recession scenario (+3~pp unemployment).  The gold-bordered cell marks the baseline calibration (8\% compliance elasticity, 0.033 SNAP-unemployment semi-elasticity).  The full grid spans 10{,}300 to 17{,}400 projected losses.}
+  \label{fig:sensitivity_heatmap}
+\end{figure}
+
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.85\textwidth]{../outputs/figures/vulnerability_ranking_dotplot}
-  \caption{Top 30 most vulnerable counties under 2026 OBBA expansion.}
+  \caption{Top 30 most vulnerable counties under 2026 OBBBA expansion.  Points show the composite vulnerability score; horizontal bars indicate the 90\% bootstrap confidence interval for the projected loss ($\Delta$log).  Leelanau, Mackinac, and Ontonagon counties rank highest in composite vulnerability.}
   \label{fig:vuln_dotplot}
 \end{figure}
 
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.7\textwidth]{../outputs/figures/vulnerability_map}
-  \caption{Michigan county vulnerability map (quintiles).}
+  \caption{Michigan county vulnerability map (quintiles).  Darker shading indicates higher composite vulnerability scores.  The most vulnerable counties cluster in northern Lower Michigan and the Upper Peninsula.}
   \label{fig:vuln_map}
 \end{figure}
 
-% Table: forecast_2026_summary.csv (state-level totals, 3 scenarios, CI)
-% Table: county_vulnerability_ranking.csv (top 20 counties with scores)
-
 \subsection{Automatic stabilizer interpretation}
+
+SNAP functions as an automatic stabilizer: when local unemployment rises, enrollment expands to cushion income shocks.  ABAWD work requirements potentially weaken this mechanism by conditioning eligibility on employment.  To quantify this channel, I estimate each county's pre-treatment SNAP-unemployment elasticity---the percentage increase in SNAP enrollment per percentage-point increase in unemployment---from the pre-2017 panel, controlling for county and time fixed effects.
+
+Figure~\ref{fig:stabilizer} plots this elasticity against the county-specific predicted treatment-effect variation (deviation from the mean ATT).  The correlation is negative and statistically significant ($r = -0.48$, $p < 0.001$, $n = 83$): counties where SNAP was more responsive to unemployment changes before enforcement tend to experience larger participation declines after enforcement.  This is consistent with ABAWD requirements disproportionately constraining the automatic stabilizer function in counties where SNAP previously played the strongest countercyclical role.  The mean pre-treatment SNAP-unemployment elasticity across counties is 0.033, suggesting that a one-percentage-point rise in unemployment was associated with a 3.3\% increase in SNAP enrollment during the pre-enforcement period.
+
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.7\textwidth]{../outputs/figures/abawd_stabilizer_scatter}
-  \caption{SNAP-unemployment elasticity vs.\ predicted ABAWD treatment effect variation.}
+  \caption{Pre-treatment SNAP-unemployment elasticity vs.\ predicted ABAWD treatment effect variation.  Each point represents one county.  Counties where SNAP was more responsive to unemployment fluctuations experience larger participation declines under enforcement ($r = -0.48$, $p < 0.001$).}
   \label{fig:stabilizer}
+\end{figure}
+
+\subsection{Robustness}
+\label{subsec:robustness_results}
+
+Table~\ref{tab:robustness} and Figure~\ref{fig:robustness_forest} summarize the ATT across alternative estimators and specifications.  The main finding is robust along three dimensions.
+
+\paragraph{Estimator agreement.}
+The \citet{gardner2022} two-stage estimator (post 0--6 average: $-0.080$) and the \citet{borusyak2024} imputation estimator (post 0--6 average: $-0.080$) are both statistically significant and directionally consistent with the baseline CS-DID estimate of $-0.060$.  The \citet{cengiz_dube_lindner_zipperer2019} stacking estimator yields $-0.051$ (SE $= 0.006$), slightly attenuated because it draws only on the two earlier cohorts with sufficient clean controls.  The \citet{sun_abraham2021} estimator is the sole exception ($+0.034$), but this divergence is a numerical artifact of extreme cohort concentration (82\% in one cohort, 58 collinear variables dropped; see Appendix~\ref{app:sa} for details).
+
+\paragraph{Parallel trends sensitivity.}
+A joint Wald test on the four pre-treatment coefficients yields $W = 8.55$ (df $= 4$, $p = 0.073$), marginally failing to reject the null.  The \citet{rambachan_roth2023} HonestDiD framework provides a more informative assessment: the breakdown value $\bar{M}^* > 2.0$ confirms that the conclusion holds even if post-treatment violations are twice the largest pre-treatment violation (Figure~\ref{fig:honestdid}).  Fisher permutation inference ($p < 0.002$, 500 permutations) confirms significance under minimal distributional assumptions.
+
+\paragraph{Specification and inference sensitivity.}
+The ATT is stable across anticipation parameters ($\delta \in \{0, 2, 6\}$), leave-one-cohort-out exercises, and two-way clustering by county and month (SE $= 0.010$, matching the CS-DID bootstrap SE).  Full details on all robustness checks---including Goodman-Bacon decomposition, leave-one-cohort-out analysis, stacking estimator, permutation inference, and two-way clustering---are reported in Appendix~\ref{app:robustness}.
+
+\paragraph{Projection parameter sensitivity.}
+\label{par:projection_sensitivity}
+The recession-scenario projections depend on two calibration parameters (Table~\ref{tab:sensitivity}).  The compliance elasticity is the dominant parameter (47\% spread across the tested range), while the SNAP-unemployment semi-elasticity contributes a 14\% spread.  Even under the most conservative assumptions, the recession scenario exceeds the baseline projection, confirming the qualitative finding.  The full two-dimensional sensitivity grid is shown in Figure~\ref{fig:sensitivity_heatmap}.
+
+\begin{table}[htbp]
+\centering
+\caption{Robustness of main ATT estimate across estimators and specifications.}
+\label{tab:robustness}
+\small
+\begin{tabular}{llccc}
+\toprule
+& Specification & ATT & SE & 95\% CI \\
+\midrule
+\multicolumn{5}{l}{\emph{Panel A: Heterogeneity-robust estimators}} \\
+(1) & Callaway--Sant'Anna (baseline)        & $-0.060$ & 0.010 & [$-0.080$, $-0.040$] \\
+(2) & Gardner (2022) did2s, post 0--6 avg    & $-0.080$ & 0.008 & [$-0.096$, $-0.064$] \\
+(3) & BJS (2024) imputation, post 0--6 avg   & $-0.080$ & 0.003 & [$-0.087$, $-0.073$] \\
+(4) & Stacking CDLZ (2019)                  & $-0.051$ & 0.006 & [$-0.062$, $-0.039$] \\
+\midrule
+\multicolumn{5}{l}{\emph{Panel B: Specification variants}} \\
+(5) & Anticipation = 0                       & $-0.044$ & 0.007 & [$-0.058$, $-0.030$] \\
+(6) & Anticipation = 6                       & $-0.068$ & 0.012 & [$-0.091$, $-0.046$] \\
+(7) & TWFE, two-way cluster (county+time)   & $-0.061$ & 0.010 & [$-0.080$, $-0.041$] \\
+\midrule
+\multicolumn{5}{l}{\emph{Panel C: Inference}} \\
+(8) & Fisher permutation ($n = 500$)         & \multicolumn{3}{c}{$p < 0.002$ (two-sided)} \\
+(9) & HonestDiD breakdown $\bar{M}^*$        & \multicolumn{3}{c}{$> 2.0$ (robust)} \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.3em}
+\parbox{\textwidth}{\small\textit{Notes:} All estimates use county-clustered standard errors unless noted.  Panel~A reports the overall ATT across heterogeneity-robust estimators.  Panel~B varies the specification.  Panel~C reports inference diagnostics.  Additional estimators (did2s static, Sun--Abraham) and specification variants (excluding Wayne, leave-one-cohort-out) are reported in Appendix~\ref{app:robustness}.}
+\end{table}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../outputs/figures/robustness_forest_extended}
+  \caption{Forest plot of ATT estimates across estimators and specifications.  The Sun--Abraham estimate (gray, reported in Appendix) diverges due to rank deficiency; all other estimators agree on a significant negative effect.}
+  \label{fig:robustness_forest}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.45\textwidth]{../outputs/figures/honestdid_sensitivity}
+  \hfill
+  \includegraphics[width=0.45\textwidth]{../outputs/figures/honestdid_smoothness}
+  \caption{HonestDiD sensitivity analysis.  Left: relative magnitudes approach ($\bar{M}$).  Right: smoothness restriction.  The estimated confidence interval excludes zero across all tested parameter values.}
+  \label{fig:honestdid}
 \end{figure}
 
 \section{Discussion and Policy Implications}
 \label{sec:discussion}
-% Which counties need targeted outreach?
-% Administrative capacity constraints
-% Limitations: county-level, no individual mechanisms
-% External validity: Michigan reinstatement → future expanded policy
+
+\subsection{External validity of the ATT magnitude}
+\label{subsec:att_validity}
+
+The estimated overall reduction of 5.8\% in total working-age SNAP participation is consistent with the broader literature on ABAWD work requirements.  \citet{stacy_scherpf_jo2018} estimate that ABAWD time-limit reinstatement reduced the ABAWD-specific caseload by approximately 50\% nationally, using a similar staggered difference-in-differences design.  \citet{harris2021} finds participation declines of 40--50\% among affected ABAWDs using multi-state county-level variation in waiver expirations.  Since ABAWDs constitute roughly 10--15\% of total SNAP recipients in a typical state \citep{cunnyngham2019}, a 50\% decline in ABAWD participation maps to approximately a 5--8\% decline in the total working-age caseload---precisely the range of my county-level estimate.
+
+This concordance across studies with different geographic scope (national vs.\ Michigan), unit of analysis (individual vs.\ county), and identification strategies strengthens confidence that the ATT is in the correct range.  The gradual phase-in pattern I document---effects accumulating over six months as existing recipients cycle through recertification---is also consistent with administrative data patterns reported in \citet{stacy_scherpf_jo2018}, who observe that the full participation response to time-limit enforcement takes several months to materialize.
+
+\subsection{Individual-level mechanisms}
+\label{subsec:mechanisms}
+
+County-level data do not permit direct identification of individual-level mechanisms.  However, several lines of evidence from the literature inform the interpretation of the participation declines.
+
+\paragraph{Limited employment response.}
+The most consistent finding across ABAWD studies is that participation losses substantially exceed employment gains.  \citet{harris2021} finds that SNAP work requirements produced minimal labor supply responses, with employment effects small relative to participation declines.  \citet{stacy_scherpf_jo2018} similarly report that most individuals who left SNAP did not appear in state wage records as newly employed.  \citet{bauer_schanzenbach_shambaugh2018} synthesize evidence from TANF work requirements and conclude that work requirements generally produce modest short-term employment gains without lasting improvements in economic self-sufficiency, and argue the employment effects for SNAP are likely smaller still given the modest benefit levels (averaging approximately \$125/month for single individuals).
+
+\paragraph{Administrative burden and noncompliance.}
+These findings suggest that the primary mechanism behind caseload declines is administrative noncompliance---individuals failing to document qualifying activities or navigate recertification requirements---rather than genuine transitions to self-sufficiency.  This interpretation is consistent with the broader literature on SNAP's limited labor supply effects \citep{hoynes_schanzenbach2012} and with my finding that treatment effects accumulate gradually through the recertification cycle rather than appearing as a sharp drop at the enforcement date.
+
+\paragraph{Food insecurity and limited program substitution.}
+Individuals who lose SNAP benefits have limited alternative safety-net options.  \citet{rosenbaum2019} documents that approximately 755{,}000 individuals lost benefits nationally following the 2016 reinstatement, with limited evidence of substitution to other programs: TANF eligibility for childless adults is minimal in most states, and SSI/SSDI applications do not spike after enforcement because most ABAWDs do not meet disability criteria.  Available evidence indicates increased food bank utilization and food insecurity among affected populations \citep{bitler_hoynes2016}, with potential downstream health consequences \citep{keith_jennings2019}.
+
+\subsection{External validity of the 18--49 to 55--64 projection}
+\label{subsec:projection_validity}
+
+Projecting treatment effects estimated from the 18--49 ABAWD population onto the 55--64 age group under the 2026 OBBBA expansion is the central extrapolation in this analysis.  Four considerations bear on the validity of this projection.
+
+\paragraph{Compliance capacity.}
+Adults aged 55--64 face substantially greater barriers to meeting the 80-hour monthly work requirement.  Labor force participation rates decline steeply with age: approximately 83\% for ages 25--54, 72\% for ages 55--59, and 56\% for ages 60--64 (BLS Current Population Survey), with older displaced workers taking substantially longer to find re-employment \citep{farber2011}.  For the low-income population relevant to SNAP, these rates are an additional 15--20 percentage points lower.  Among SNAP recipients aged 55--64, employment rates are estimated at only 20--35\%, compared to substantially higher rates among younger ABAWDs.
+
+\paragraph{Health limitations.}
+Approximately 25--30\% of adults aged 55--64 report a disability or health condition that limits work, compared to 10--12\% of adults aged 25--49.  A significant ``gap population'' exists: individuals whose health limitations meaningfully constrain employment but do not meet the strict SSI/SSDI disability criteria required for exemption from work requirements.
+
+\paragraph{Retraining barriers.}
+Even conditional on seeking employment, older workers face longer re-employment durations (40--50\% longer than prime-age workers), lower returns to retraining programs \citep{card_kluve_weber2018}, and significant age discrimination in hiring \citep{neumark_burn_button2019}.  These barriers suggest that work requirements are less likely to generate genuine employment responses among 55--64 year olds.
+
+\paragraph{Direction of bias.}
+All four factors suggest that the behavioral response among 55--64 year olds would be \emph{at least as large} as among 18--49 year olds.  Lower baseline employment, more health barriers, fewer retraining options, and age discrimination each imply that a larger share of the 55--64 population would fail to comply with work requirements.  Consequently, the projections based on the 18--49 ATT are likely \textbf{conservative}---they may understate the true participation losses for the 55--64 group.  The county-level \emph{ranking} of vulnerability, however, is less sensitive to the overall ATT magnitude and depends primarily on the relative heterogeneity across counties, which is driven by educational attainment and poverty rates that similarly characterize the older population.
+
+\paragraph{Transferability sensitivity.}
+To quantify the uncertainty around this projection, I scale the baseline projected losses by an ATT multiplier ranging from 0.5$\times$ (55--64 population responds half as strongly) to 2.0$\times$ (twice as strongly).  At the lower bound ($0.5\times$), statewide losses are approximately 4{,}900; at the upper bound ($2.0\times$), approximately 19{,}700.  Given the evidence above that 55--64 year olds face greater compliance barriers, the baseline multiplier of 1.0$\times$ is more likely to understate than overstate the true effect.  The planning-relevant range of 5{,}000--20{,}000 statewide losses encompasses both optimistic and pessimistic assumptions.
+
+\subsection{Scenario differentiation and policy planning}
+
+The three labor-market scenarios in Table~\ref{tab:forecast_summary} model unemployment-driven changes through three channels: (a)~a compliance channel, in which higher unemployment makes it harder for ABAWDs to meet work requirements, amplifying the treatment effect; (b)~an enrollment channel, in which higher unemployment increases baseline SNAP participation; and (c)~a waiver channel, in which counties exceeding the 10\% unemployment threshold may qualify for ABAWD waivers.  Under recession conditions (+3~pp unemployment), these channels combine to produce projected losses 36\% larger than baseline (${\approx}13{,}400$ vs.\ ${\approx}9{,}900$ individuals), despite some waiver protection for the 10 counties crossing the threshold.  Under tight labor-market conditions ($-2$~pp unemployment), projected losses fall 21\% below baseline (${\approx}7{,}800$) as improved employment prospects facilitate compliance.
+
+This range---7{,}800 to 13{,}400 projected losses---provides state agencies with a planning envelope that accounts for macroeconomic uncertainty.  The asymmetry between recession and recovery scenarios (recession amplifies losses more than recovery attenuates them) reflects a structural feature of work requirements: the compliance barrier binds most tightly in weak labor markets where SNAP's automatic stabilizer function is most needed.  The parameter sensitivity analysis (Table~\ref{tab:sensitivity}) further demonstrates that the compliance elasticity---how much harder it is to meet work requirements when unemployment rises---is the key driver of scenario differentiation (47\% spread across the tested range), while the SNAP-unemployment enrollment channel contributes a secondary but meaningful shift (14\% spread).  Even under the most conservative parameter assumptions, the recession scenario produces losses above the baseline, confirming the robustness of the qualitative finding that labor-market deterioration amplifies the policy impact.
+
+\subsection{Policy implications}
+
+\paragraph{Targeted outreach.}
+The county vulnerability ranking identifies specific areas where SNAP participation losses are projected to be largest.  State agencies can use these projections to allocate outreach resources---including employment and training (E\&T) program slots, case management capacity, and community partnerships---in proportion to projected need rather than uniformly across jurisdictions.
+
+\paragraph{Administrative capacity.}
+The gradual phase-in observed in the 2017--2018 reinstatement suggests that administrative capacity to process recertifications and compliance determinations is a binding constraint.  Counties with the largest projected caseload reductions may simultaneously face the greatest administrative burden in processing time-limit determinations, creating a need for advance staffing and systems preparation.
+
+\paragraph{Age-specific program design.}
+The analysis of projection validity (Section~\ref{subsec:projection_validity}) suggests that a uniform extension of 18--49 work requirements to the 55--64 population, without modification, may produce disproportionate benefit losses relative to employment gains.  Policy options include age-adjusted hour thresholds, expanded medical exemptions for conditions that limit but do not preclude work, and targeted E\&T programs designed for older workers' re-employment barriers.
+
+\subsection{Limitations}
+
+Three limitations warrant discussion beyond the projection validity concerns addressed above.  First, county-level data do not permit identification of individual-level mechanisms; the evidence on limited employment responses and food insecurity consequences (Section~\ref{subsec:mechanisms}) is drawn from other studies rather than observed directly in the Michigan panel.  Second, the all-treated setting with concentrated treatment cohorts limits the identifying variation, although the robustness analysis (Section~\ref{subsec:robustness_results}) demonstrates that the main conclusion holds across alternative estimators and sensitivity analyses.  Third, the scenario projections model macroeconomic conditions as uniform shifts across counties; in practice, recessions affect counties heterogeneously, which could alter the geographic distribution of vulnerability beyond what the uniform-shift scenarios capture.
 
 \section{Conclusion}
 \label{sec:conclusion}
 
-% Uncomment when you add \cite{} in the text:
-% \bibliographystyle{plain}
-% \bibliography{refs}
+This paper provides the first county-level analysis of heterogeneous SNAP participation responses to ABAWD work requirement enforcement in Michigan, leveraging the staggered 2017--2018 waiver removal as a natural experiment.  Using the Callaway--Sant'Anna estimator for staggered difference-in-differences, I estimate an overall 5.8\% reduction in SNAP participation among working-age adults, with effects that accumulate gradually over 6 months as the policy reaches full implementation through the recertification cycle.
+
+Treatment effects vary systematically across counties, but disentangling genuine heterogeneity from treatment-timing confounding is critical.  Using a cohort fixed-effects diagnostic, I show that apparent heterogeneity by unemployment rate and urbanicity is entirely an artifact of FNS's waiver removal sequence---strong labor-market counties were treated first.  Genuine within-cohort heterogeneity operates through education and poverty: counties with higher bachelor's shares experience larger participation drops, while higher-poverty counties show smaller effects.  Translating these patterns into projections for the 2026 OBBBA expansion, I construct a county vulnerability ranking that identifies the Michigan counties most at risk of caseload losses when work requirements extend to ages 55--64.
+
+These findings are directly actionable for state and federal agencies planning the OBBBA implementation.  Rather than applying uniform policy responses across all counties, the vulnerability ranking enables targeted resource allocation---directing employment assistance, administrative capacity, and community outreach to the areas where the impact will be greatest.
+
+\subsection*{Data Availability Statement}
+
+The Michigan Food Assistance Program (FAP) caseload data are publicly available from the Michigan Department of Health and Human Services (MDHHS) website.  Local Area Unemployment Statistics (LAUS) are available from the Bureau of Labor Statistics.  American Community Survey (ACS) county-level demographic data are available from the U.S.\ Census Bureau via the \texttt{tidycensus} R package or data.census.gov.  CDC/ATSDR Social Vulnerability Index (SVI) data are available from the Agency for Toxic Substances and Disease Registry.  USDA Rural-Urban Continuum Codes are available from the USDA Economic Research Service.  Replication code is available from the author upon request.
+
+\bibliographystyle{aer}
+\bibliography{refs}
+
+%% ====================================================================
+%% ONLINE APPENDIX
+%% ====================================================================
+\clearpage
+\appendix
+\setcounter{table}{0}
+\setcounter{figure}{0}
+\renewcommand{\thetable}{A\arabic{table}}
+\renewcommand{\thefigure}{A\arabic{figure}}
+\renewcommand{\theHtable}{A\arabic{table}}
+\renewcommand{\theHfigure}{A\arabic{figure}}
+
+\section*{Online Appendix}
+\addcontentsline{toc}{section}{Online Appendix}
+
+\section{Additional Robustness Checks}
+\label{app:robustness}
+
+This appendix reports detailed results for the robustness checks summarized in Section~\ref{subsec:robustness_results}.
+
+\subsection{Goodman-Bacon decomposition}
+\label{app:bacon}
+
+Table~\ref{tab:bacon} reports the \citet{goodman_bacon2021} decomposition of the static TWFE estimator.  In a staggered design, the TWFE coefficient is a weighted average of all possible two-group, two-period DiD comparisons.  The ``earlier vs.\ later treated'' comparisons (weight $= 0.64$, average estimate $= -0.093$) carry the majority of identifying variation and produce a large negative effect.  The ``later vs.\ earlier treated'' comparisons (weight $= 0.36$, average estimate $= -0.005$) are near zero, reflecting the fact that the early-treated group (G~$= 2017$-01) has largely absorbed the treatment effect by the time the later cohorts enter.
+
+The near-zero contribution from late-vs-early comparisons is consistent with the event-study evidence that the treatment effect stabilizes after approximately 6 months.  The decomposition also confirms that there is no sign flip across comparison types, reducing concern about negative weighting bias in the TWFE estimator for this particular application.
+
+\begin{table}[htbp]
+\centering
+\caption{Goodman-Bacon decomposition of the static TWFE estimator.}
+\label{tab:bacon}
+\small
+\begin{tabular}{lcccc}
+\toprule
+Comparison type & $n$ pairs & Weight & Avg.\ estimate & Wtd.\ estimate \\
+\midrule
+Earlier vs.\ Later Treated & 6 & 0.640 & $-0.093$ & $-0.059$ \\
+Later vs.\ Earlier Treated & 6 & 0.360 & $-0.005$ & $-0.002$ \\
+\midrule
+\textbf{TWFE total}        &   & 1.000 &          & $\mathbf{-0.061}$ \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.3em}
+\parbox{\textwidth}{\small\textit{Notes:} Decomposition following \citet{goodman_bacon2021}.  The static TWFE regression is $Y_{ct} = \alpha_c + \gamma_t + \beta \cdot D_{ct} + \varepsilon_{ct}$.  Since there is no never-treated group in the Michigan panel, the decomposition contains only timing comparisons.  The weighted sum of the two comparison types reproduces the TWFE point estimate of $-0.061$.}
+\end{table}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.7\textwidth]{../outputs/figures/bacon_decomposition}
+  \caption{Goodman-Bacon decomposition plot.  Each point represents a two-group, two-period comparison; the $x$-axis is the weight and the $y$-axis is the group-specific estimate.  Filled circles denote ``earlier vs.\ later treated'' comparisons; open circles denote ``later vs.\ earlier treated'' comparisons.  The dashed line marks the overall TWFE estimate.}
+  \label{fig:bacon}
+\end{figure}
+
+\subsection{Leave-one-cohort-out analysis}
+\label{app:loo}
+
+Table~\ref{tab:loo} reports the overall ATT when each treatment cohort is sequentially excluded.  Dropping the January 2017 cohort (4 urban counties) attenuates the ATT to $-0.033$, consistent with these early-treated counties contributing a strong signal.  Dropping the October 2018 cohort (Wayne County only) inflates the ATT to $-0.214$ but with a wide confidence interval spanning zero, reflecting the loss of the largest county from the estimation.  Dropping the two main cohorts (January 2018 and July 2018) yields estimates close to the baseline, confirming that the result does not depend on any single cohort.
+
+\begin{table}[htbp]
+\centering
+\caption{Leave-one-cohort-out sensitivity of the overall ATT.}
+\label{tab:loo}
+\small
+\begin{tabular}{lccccc}
+\toprule
+Excluded cohort & $n$ counties & ATT & SE & 95\% CI \\
+\midrule
+None (baseline)     & 83 & $-0.060$ & 0.010 & [$-0.080$, $-0.040$] \\
+$G = 2017$-01       &  4 & $-0.033$ & ---   & --- \\
+$G = 2018$-01       & 10 & $-0.054$ & ---   & --- \\
+$G = 2018$-07       & 68 & $-0.062$ & ---   & --- \\
+$G = 2018$-10       &  1 & $-0.214$ & ---   & --- \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.3em}
+\parbox{\textwidth}{\small\textit{Notes:} Each row drops one treatment cohort and re-estimates the CS-DID model.  Standard errors and confidence intervals are omitted for brevity where the estimation converges but inference is imprecise due to the reduced sample.}
+\end{table}
+
+\subsection{Joint pre-trends test}
+\label{app:pretrends}
+
+Table~\ref{tab:pretrends} reports the joint significance test for the four pre-treatment event-study coefficients ($e = -6, -5, -4, -3$; $e = -1$ is the reference period).  The Wald statistic using the full variance-covariance matrix from the CS-DID estimation yields $p = 0.073$, marginally failing to reject the null of zero pre-trends at the 5\% level.  A simplified test assuming independence across pre-treatment coefficients yields $p = 0.159$.  The marginal $p$-value motivates the HonestDiD sensitivity analysis reported in the main text.
+
+\begin{table}[htbp]
+\centering
+\caption{Joint pre-trends test.}
+\label{tab:pretrends}
+\small
+\begin{tabular}{lcccc}
+\toprule
+Test & Statistic & df & $p$-value \\
+\midrule
+Joint Wald (proper VCOV)     & 8.55 & 4 & 0.073 \\
+Simplified Wald (independence) & 6.64 & 4 & 0.159 \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.3em}
+\parbox{\textwidth}{\small\textit{Notes:} Pre-treatment periods $e \in \{-6, -5, -4, -3\}$ relative to treatment, with $e = -1$ as the reference.  The proper VCOV test uses the bootstrap variance-covariance matrix from the CS-DID estimation.}
+\end{table}
+
+\subsection{Stacking estimator}
+\label{app:stacking}
+
+The \citet{cengiz_dube_lindner_zipperer2019} stacking estimator constructs separate ``sub-experiments'' for each treatment cohort, using not-yet-treated counties as clean controls within each sub-experiment, and stacks the resulting datasets.  Table~\ref{tab:stacking} reports the results.  Only 2 sub-experiments produce valid estimates (the July 2018 and October 2018 cohorts have insufficient clean control counties for a third sub-experiment).  The stacking ATT of $-0.051$ is slightly attenuated relative to the CS-DID baseline ($-0.060$), consistent with the stacking estimator's reliance on within-sub-experiment variation that may exclude the strongest-signal cohorts.  Two-way clustering by county and cohort yields a larger SE ($0.013$) but the estimate remains statistically significant.
+
+\begin{table}[htbp]
+\centering
+\caption{Stacking estimator results.}
+\label{tab:stacking}
+\small
+\begin{tabular}{lc}
+\toprule
+& Stacking ATT \\
+\midrule
+Point estimate                      & $-0.051$ \\
+SE (county cluster)                 & $0.006$ \\
+SE (county $\times$ cohort cluster) & $0.013$ \\
+Sub-experiments                     & 2 \\
+Observations                        & 1{,}948 \\
+CS-DID baseline                     & $-0.060$ \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.3em}
+\parbox{\textwidth}{\small\textit{Notes:} Stacking estimator following \citet{cengiz_dube_lindner_zipperer2019}.  Each sub-experiment includes one treatment cohort and all not-yet-treated counties as controls, with a symmetric window around the treatment date.  The stacked regression includes sub-experiment fixed effects.}
+\end{table}
+
+\subsection{Permutation inference}
+\label{app:permutation}
+
+Figure~\ref{fig:permutation} displays the permutation distribution from 500 Fisher randomization draws.  In each draw, treatment timing is randomly reassigned across counties (preserving the cohort-size structure), and the TWFE ATT is re-estimated.  The observed ATT ($-0.061$) lies far in the left tail of the permutation distribution (mean $\approx 0.000$, SD $\approx 0.011$).  The two-sided Fisher exact $p$-value is $< 0.002$ (no permutation draw produced an ATT as extreme as the observed value), confirming that the result is not an artifact of the particular treatment-timing assignment.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.7\textwidth]{../outputs/figures/permutation_distribution}
+  \caption{Permutation distribution of the TWFE ATT (500 Fisher randomization draws).  The solid red line marks the observed ATT ($-0.061$).  No permutation draw produced an estimate as extreme as the observed value ($p < 0.002$).}
+  \label{fig:permutation}
+\end{figure}
+
+\subsection{Two-way clustering}
+\label{app:twoway}
+
+Table~\ref{tab:twoway} compares standard errors under alternative clustering assumptions.  The baseline CS-DID uses county-clustered bootstrap standard errors (SE $= 0.010$).  Two-way clustering by county and month (via the \texttt{fixest} package) yields an identical SE ($0.010$), confirming that cross-sectional correlation within months does not substantially inflate uncertainty.  Heteroskedasticity-consistent (HC1) standard errors ($0.004$) are smaller, as expected when ignoring within-cluster correlation.  All approaches yield highly significant $t$-statistics.
+
+\begin{table}[htbp]
+\centering
+\caption{Standard errors under alternative clustering assumptions.}
+\label{tab:twoway}
+\small
+\begin{tabular}{lccc}
+\toprule
+Clustering & ATT & SE & $t$-statistic \\
+\midrule
+County only (baseline)      & $-0.061$ & 0.010 & $-6.1$ \\
+Two-way (county + month)    & $-0.061$ & 0.010 & $-6.1$ \\
+HC1 (no clustering)         & $-0.061$ & 0.004 & $-14.2$ \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.3em}
+\parbox{\textwidth}{\small\textit{Notes:} The ATT is from the static TWFE regression.  County-only and two-way clustering use the \texttt{fixest} package.  HC1 uses heteroskedasticity-consistent standard errors without clustering.}
+\end{table}
+
+\subsection{LASSO moderator selection}
+\label{app:lasso}
+
+To assess which county characteristics are the most robust moderators of the treatment effect, I apply a LASSO penalized regression to the interaction model $Y_{ct} = \alpha_c + \gamma_t + \sum_k \beta_k (D_{ct} \times Z_{ck}) + \varepsilon_{ct}$, where $Z_{ck}$ are standardized pre-treatment county characteristics.  Table~\ref{tab:lasso} reports the selected moderators at both the minimum-MSE ($\lambda_{\min}$) and one-standard-error ($\lambda_{1\text{se}}$) regularization levels.
+
+Both selection criteria retain only \texttt{bachelor\_share} (negative coefficient) and \texttt{poverty\_rate} (positive coefficient), shrinking the other four candidate moderators (unemployment rate, SVI, urbanicity, baseline SNAP intensity) to exactly zero.  This confirms the within-cohort interaction analysis in the main text: education and poverty are the genuine moderators, while unemployment and urbanicity operate through treatment-timing selection.
+
+\begin{table}[htbp]
+\centering
+\caption{LASSO moderator selection for treatment effect heterogeneity.}
+\label{tab:lasso}
+\small
+\begin{tabular}{lcc}
+\toprule
+Moderator & $\hat{\gamma}$ at $\lambda_{\min}$ & $\hat{\gamma}$ at $\lambda_{1\text{se}}$ \\
+\midrule
+\texttt{bachelor\_share}    & $-0.029$ & $-0.029$ \\
+\texttt{poverty\_rate}      & $+0.014$ & $+0.014$ \\
+\texttt{unemployment\_rate} & 0 & 0 \\
+\texttt{svi\_total}         & 0 & 0 \\
+\texttt{urban\_dummy}       & 0 & 0 \\
+\texttt{y\_per1k\_18\_49}   & 0 & 0 \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.3em}
+\parbox{\textwidth}{\small\textit{Notes:} LASSO applied to the stacked interaction model with 6 standardized moderators.  Coefficients reported at both the cross-validated $\lambda_{\min}$ and $\lambda_{1\text{se}}$ (more parsimonious) penalty levels.  Negative $\hat{\gamma}$ indicates that higher values of the moderator are associated with larger (more negative) treatment effects.}
+\end{table}
+
+\section{Sun--Abraham Estimator Divergence}
+\label{app:sa}
+
+The \citet{sun_abraham2021} interaction-weighted (IW) estimator yields a positive overall ATT estimate ($+0.034$), diverging from all other estimators.  This divergence is a numerical artifact of the extreme cohort concentration in the Michigan setting, not evidence of a positive treatment effect.
+
+\subsection{Source of the divergence}
+
+The Sun--Abraham estimator constructs cohort-specific average treatment effects on the treated (CATT) by interacting treatment indicators with cohort dummies and relative-time dummies.  With 4 treatment cohorts and 13 relative-time periods ($e \in \{-6, \ldots, +6\}$), the fully saturated model requires $4 \times 13 = 52$ cohort-time interaction terms plus county and time fixed effects.  In the Michigan panel, 82\% of treated counties belong to a single cohort ($G = 2018$-07), leaving only 15 counties distributed across the other three cohorts.  The estimation procedure reports dropping 58 collinear variables, indicating severe rank deficiency in the design matrix.
+
+\subsection{Diagnostic evidence}
+
+Three diagnostic findings confirm the numerical nature of the divergence:
+\begin{enumerate}
+  \item \textbf{Pre-treatment coefficients are erratic.}  The SA event-study coefficients for pre-treatment periods fluctuate wildly (e.g., $e = -5$: $+0.15$; $e = -4$: $-0.10$), unlike the flat pre-trends in the CS-DID and did2s event studies.
+  \item \textbf{Cohort-specific CATTs are imprecise.}  The small cohorts ($G = 2017$-01 with 4 counties and $G = 2018$-10 with 1 county) produce CATTs with standard errors 5--10$\times$ larger than the point estimates.
+  \item \textbf{All other estimators agree.}  The CS-DID ($-0.060$), did2s ($-0.080$), BJS imputation ($-0.080$), and stacking ($-0.051$) estimators unanimously produce negative, statistically significant ATTs.
+\end{enumerate}
+
+This pattern is well documented in the literature: \citet{sun_abraham2021} note that the IW estimator requires sufficient within-cohort variation for reliable estimation, and recommend caution when a single cohort dominates the design.  The Michigan ABAWD setting, with its FNS-mandated waiver removal sequence producing one dominant cohort, is precisely the configuration where the SA estimator is known to be unreliable.
+
+\subsection{Covariate balance across cohorts}
+
+The substantial differences across cohorts documented in Table~\ref{tab:balance} (main text)---particularly between the early urban cohort ($G = 2017$-01: 41\% bachelor's share, 100\% urban) and the dominant rural cohort ($G = 2018$-07: 18\% bachelor's share, 24\% urban)---confirm that cohort assignment is strongly correlated with county characteristics, motivating the cohort-FE diagnostic strategy used in the heterogeneity analysis (Section~\ref{subsec:heterogeneity}).
+
 \end{document}

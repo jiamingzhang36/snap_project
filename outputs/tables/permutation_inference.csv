@@ -1,0 +1,8 @@
+test,value
+Observed TWFE ATT,-0.0612635619061868
+Fisher p (two-sided),0
+Fisher p (one-sided),0
+Permutation mean,2.9725371061468947e-4
+Permutation SD,0.01075732686572546
+N permutations,500
+CS-DID ATT (reference),-0.06046919819452699

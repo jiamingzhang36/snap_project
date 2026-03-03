@@ -1,0 +1,7 @@
+att_multiplier,interpretation,projected_loss
+0.5,55-64 respond half as much as 18-49,-4936.34072741877
+0.75,55-64 respond 25% less,-7404.511091128155
+1,Same response (baseline assumption),-9872.68145483754
+1.25,55-64 respond 25% more,-12340.851818546926
+1.5,55-64 respond 50% more,-14809.02218225631
+2,55-64 respond twice as much,-19745.36290967508

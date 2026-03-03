@@ -8,7 +8,7 @@ source("R/00_utils/helpers_policy.R", local = TRUE)
 
 path_acs   <- file.path(DIR_DATA_CLEAN, "acs_county_year_MI.csv")
 path_G     <- file.path(DIR_DATA_CLEAN, "panel_with_G.csv")
-Y_MODE     <- "log1p_per1k_18_49"  # default outcome for DID
+Y_MODE     <- "log_per1k_18_49"  # default outcome for DID (log, not log1p; min value ~52, no zeros)
 
 # Build from panel_with_laus + ACS when possible
 panel_laus_path <- file.path(DIR_DERIVED, "panel_with_laus.rds")

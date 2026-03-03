@@ -32,12 +32,12 @@ build_analysis_df <- function(panel_raw,
         }
       ),
       Y = if (Y_COL %in% c("y_per1k_18_49", "y_per1k_total", "y_per100_lf")) {
-        log1p(as.numeric(.data[[Y_COL]]))
+        log(as.numeric(.data[[Y_COL]]))
       } else if (grepl("^y_log", Y_COL, ignore.case = TRUE)) {
         as.numeric(.data[[Y_COL]])
       } else if (Y_COL == "y_raw" && "population_18_49" %in% names(.data)) {
         y_rate <- (as.numeric(.data[[Y_COL]]) / pmax(as.numeric(.data[["population_18_49"]]), 1)) * 1000
-        log1p(y_rate)
+        log(y_rate)
       } else {
         as.numeric(.data[[Y_COL]])
       },

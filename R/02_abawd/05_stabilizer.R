@@ -1,5 +1,7 @@
 # R/02_abawd/05_stabilizer.R
-# Input:  data/derived/panel_analysis.rds, outputs/tables/abawd_heterogeneity.csv
+# Input:  data/derived/panel_analysis.rds
+#         outputs/tables/abawd_county_att_hat.csv  (preferred, from 04_heterogeneity.R)
+#         outputs/tables/abawd_heterogeneity_interactions.csv (fallback)
 # Output: outputs/tables/abawd_stabilizer_correlation.csv
 #         outputs/figures/abawd_stabilizer_scatter.png
 #
@@ -30,7 +32,7 @@ Y_MAIN <- "y_per1k_18_49"
 pre <- panel_raw %>%
   dplyr::filter(date >= as.Date("2014-01-01"), date <= as.Date("2016-12-31")) %>%
   dplyr::mutate(
-    y_log = log1p(as.numeric(.data[[Y_MAIN]])),
+    y_log = log(as.numeric(.data[[Y_MAIN]])),
     unemp = as.numeric(unemployment_rate)
   ) %>%
   dplyr::filter(!is.na(y_log), !is.na(unemp), is.finite(y_log), is.finite(unemp))
@@ -61,19 +63,37 @@ county_elasticity <- pre %>%
 message("Estimated SNAP-unemployment elasticity for ", nrow(county_elasticity), " counties")
 
 # ---------------------------------------------------------------------------
-# 2) Merge with ABAWD heterogeneity results
+# 2) Obtain county-level ATT variation
 # ---------------------------------------------------------------------------
-# Load subgroup results and compute county-level ATT proxy
-# For correlation, we use the county-average characteristics to assign each county
-# its subgroup ATT. For a cleaner approach, we could use the interaction model coefficients.
+# Preferred: read county_att_hat.csv (produced by 04_heterogeneity.R)
+# Fallback: reconstruct from interaction coefficients
 
+county_att_pred <- NULL
+
+path_att_hat <- file.path(DIR_OUT_TABLES, "abawd_county_att_hat.csv")
 het_path <- file.path(DIR_OUT_TABLES, "abawd_heterogeneity_interactions.csv")
-if (file.exists(het_path)) {
-  # Use interaction model: predicted county-level ATT variation
+
+if (file.exists(path_att_hat)) {
+  att_hat_data <- readr::read_csv(path_att_hat, show_col_types = FALSE)
+  if (nrow(att_hat_data) > 0 && any(!is.na(att_hat_data$att_hat))) {
+    county_att_pred <- att_hat_data %>%
+      dplyr::mutate(
+        id = as.character(id),
+        att_variation = att_hat - mean(att_hat, na.rm = TRUE)
+      ) %>%
+      dplyr::select(id, att_variation)
+    message("Loaded county ATT hat (", nrow(county_att_pred), " counties)")
+  }
+}
+
+if (is.null(county_att_pred) && file.exists(het_path)) {
+  message("Falling back to interaction coefficients for ATT variation...")
   interaction_coefs <- readr::read_csv(het_path, show_col_types = FALSE)
 
+  # Handle both old (estimate) and new (gamma) column names
+  gamma_col <- if ("gamma" %in% names(interaction_coefs)) "gamma" else "estimate"
+
   # Reconstruct county-level predicted ATT from interaction terms
-  # Read county characteristics
   pre_chars <- panel_raw %>%
     dplyr::filter(date >= as.Date("2014-01-01"), date <= as.Date("2016-12-31")) %>%
     dplyr::group_by(id) %>%
@@ -83,18 +103,21 @@ if (file.exists(het_path)) {
       avg_poverty  = if ("poverty_rate"   %in% names(.)) mean(as.numeric(poverty_rate),   na.rm = TRUE) else NA_real_,
       avg_bachelor = if ("bachelor_share" %in% names(.)) mean(as.numeric(bachelor_share), na.rm = TRUE) else NA_real_,
       avg_svi      = if ("svi_total"      %in% names(.)) mean(as.numeric(svi_total),      na.rm = TRUE) else NA_real_,
+      is_urban     = if ("urban_dummy"    %in% names(.)) as.integer(round(mean(as.numeric(urban_dummy), na.rm = TRUE))) else NA_integer_,
       .groups = "drop"
     )
 
-  # Standardize
+  # Standardize numeric columns; keep is_urban as binary
   pre_chars_z <- pre_chars %>%
     dplyr::mutate(dplyr::across(
       dplyr::starts_with("avg_"),
       ~ (. - mean(., na.rm = TRUE)) / sd(., na.rm = TRUE),
       .names = "z_{.col}"
     ))
+  if ("is_urban" %in% names(pre_chars_z)) {
+    pre_chars_z$z_is_urban <- as.numeric(pre_chars_z$is_urban)
+  }
 
-  # Predicted relative ATT = sum(gamma_k * z_k) for each county
   county_att_pred <- pre_chars_z %>% dplyr::select(id)
   county_att_pred$att_variation <- 0
 
@@ -103,12 +126,15 @@ if (file.exists(het_path)) {
     z_col <- paste0("z_", mod_name)
     if (z_col %in% names(pre_chars_z)) {
       county_att_pred$att_variation <- county_att_pred$att_variation +
-        interaction_coefs$estimate[i] * pre_chars_z[[z_col]]
+        interaction_coefs[[gamma_col]][i] * pre_chars_z[[z_col]]
+    } else {
+      message("  Stabilizer: z-col '", z_col, "' not found, skipping moderator '", mod_name, "'")
     }
   }
-} else {
-  message("Interaction model results not found; using binary subgroup assignment for correlation.")
-  county_att_pred <- NULL
+}
+
+if (is.null(county_att_pred)) {
+  message("No county ATT variation data available; skipping stabilizer analysis.")
 }
 
 # ---------------------------------------------------------------------------
