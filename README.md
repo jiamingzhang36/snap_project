@@ -1,6 +1,6 @@
 # Michigan SNAP ABAWD County Vulnerability Analysis
 
-County-level vulnerability assessment under expanded ABAWD work requirements (2026 OBBA).
+County-level vulnerability assessment under expanded ABAWD work requirements (2026 OBBBA — One Big Beautiful Bill Act).
 
 ## Research question
 
@@ -13,7 +13,7 @@ Three-module pipeline: data construction → ABAWD event-study → 2026 forecast
 ```
 01_build: FAP raw data → county-month panel (panel_analysis.rds)
 02_abawd: Staggered DID event-study + heterogeneity + stabilizer analysis
-05_forecast_2026: OBBA scenarios + uncertainty + county vulnerability ranking
+05_forecast_2026: OBBBA scenarios + uncertainty + county vulnerability ranking
 ```
 
 ### Run
@@ -31,7 +31,7 @@ bash scripts/run_pipeline_strict.sh     # pipeline + quality gates
 | `outputs/tables/abawd_heterogeneity.csv` | ATT by county subgroup (6 dimensions) |
 | `outputs/tables/abawd_heterogeneity_interactions.csv` | Continuous interaction coefficients |
 | `outputs/tables/abawd_stabilizer_correlation.csv` | SNAP-unemployment elasticity vs ABAWD effect |
-| `outputs/tables/forecast_2026_scenarios.csv` | 3 OBBA scenarios (baseline/recession/recovery) |
+| `outputs/tables/forecast_2026_scenarios.csv` | 3 OBBBA scenarios (baseline/recession/recovery) |
 | `outputs/tables/county_vulnerability_ranking.csv` | 83 counties ranked with uncertainty |
 | `outputs/figures/abawd_es_main.png` | Main event-study plot |
 | `outputs/figures/abawd_heterogeneity_forest.png` | Subgroup ATT forest plot |
