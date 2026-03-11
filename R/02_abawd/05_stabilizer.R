@@ -39,20 +39,18 @@ pre <- panel_raw %>%
 county_elasticity <- pre %>%
   dplyr::group_by(id) %>%
   dplyr::filter(dplyr::n() >= 12) %>%
-  dplyr::do({
-    m <- tryCatch(lm(y_log ~ unemp, data = .), error = function(e) NULL)
+  dplyr::group_modify(~ {
+    m <- tryCatch(lm(y_log ~ unemp, data = .x), error = function(e) NULL)
     if (!is.null(m)) {
       data.frame(
         beta_unemp = coef(m)["unemp"],
         se_unemp   = summary(m)$coefficients["unemp", "Std. Error"],
         r_squared  = summary(m)$r.squared,
-        n_months   = nrow(.),
-        stringsAsFactors = FALSE
+        n_months   = nrow(.x)
       )
     } else {
       data.frame(beta_unemp = NA_real_, se_unemp = NA_real_,
-                 r_squared = NA_real_, n_months = nrow(.),
-                 stringsAsFactors = FALSE)
+                 r_squared = NA_real_, n_months = nrow(.x))
     }
   }) %>%
   dplyr::ungroup() %>%

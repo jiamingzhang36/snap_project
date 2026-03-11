@@ -18,7 +18,6 @@ source("R/01_build/02_clean_laus.R", local = new.env())
 source("R/01_build/03_merge_panel.R", local = new.env())
 
 message("=== 02_abawd ===")
-source("R/02_abawd/01_construct_event_time.R", local = new.env())
 source("R/02_abawd/02_estimate_event_study.R", local = new.env())
 source("R/02_abawd/04_heterogeneity.R", local = new.env())
 source("R/02_abawd/05_stabilizer.R", local = new.env())

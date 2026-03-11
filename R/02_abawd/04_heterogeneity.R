@@ -199,7 +199,7 @@ if (nrow(het) > 0 && any(!is.na(het$att))) {
 
   p <- ggplot2::ggplot(het_plot, ggplot2::aes(x = att, y = reorder(label, att))) +
     ggplot2::geom_point(size = 2.5) +
-    ggplot2::geom_errorbarh(ggplot2::aes(xmin = ci_lo, xmax = ci_hi), height = 0.2) +
+    ggplot2::geom_errorbar(ggplot2::aes(xmin = ci_lo, xmax = ci_hi), width = 0.2, orientation = "y") +
     ggplot2::geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
     ggplot2::labs(
       x = "ATT (log1p SNAP recipients per 1k pop 18-49)",

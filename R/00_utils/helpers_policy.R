@@ -76,7 +76,7 @@ derive_G <- function(panel) {
     panel <- panel %>% dplyr::mutate(ym_date = lubridate::make_date(.data$year, .data$month, 1L))
   }
   id_key <- if ("county_id" %in% names(panel)) "county_id" else "county"
-  to_t <- function(y, m) as.integer(y) * 12L + (as.integer(m) - 1L)
+  to_t <- function(y, m) as.integer(y) * 12L + as.integer(m)
   out <- panel %>%
     dplyr::group_by(.data[[id_key]]) %>%
     dplyr::summarise(
