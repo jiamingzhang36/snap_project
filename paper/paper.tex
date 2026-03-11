@@ -103,12 +103,14 @@ I evaluate the heterogeneous effects of SNAP ABAWD work requirements across Mich
   \label{fig:vuln_dotplot}
 \end{figure}
 
+\IfFileExists{../outputs/figures/vulnerability_map.png}{%
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.7\textwidth]{../outputs/figures/vulnerability_map}
   \caption{Michigan county vulnerability map (quintiles).}
   \label{fig:vuln_map}
 \end{figure}
+}{}
 
 % Table: forecast_2026_summary.csv (state-level totals, 3 scenarios, CI)
 % Table: county_vulnerability_ranking.csv (top 20 counties with scores)
@@ -131,7 +133,6 @@ I evaluate the heterogeneous effects of SNAP ABAWD work requirements across Mich
 \section{Conclusion}
 \label{sec:conclusion}
 
-% Uncomment when you add \cite{} in the text:
-% \bibliographystyle{plain}
-% \bibliography{refs}
+\bibliographystyle{plain}
+\bibliography{refs}
 \end{document}

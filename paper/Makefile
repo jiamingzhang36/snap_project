@@ -5,7 +5,9 @@ LATEX = pdflatex -file-line-error -interaction=nonstopmode
 
 all: paper.pdf slides.pdf
 
-paper.pdf: paper.tex
+paper.pdf: paper.tex refs.bib
+	$(LATEX) paper
+	-bibtex paper
 	$(LATEX) paper
 	$(LATEX) paper
 

@@ -32,3 +32,4 @@ outputs/*.html
 
 .DS_Store
 Thumbs.db
+Rplots.pdf

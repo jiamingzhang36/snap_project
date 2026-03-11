@@ -1,4 +1,7 @@
 # R/02_abawd/01_construct_event_time.R
+# NOTE: This script is NOT called by run_all.R. Its output (panel_abawd_event.rds)
+#       is not consumed by any downstream script. Event-time construction happens
+#       inside build_analysis_df() in helpers_did.R. Kept for reference only.
 # Input:  data/derived/panel_analysis.rds, data/raw/abawd_waiver_timing.csv (optional)
 # Output: data/derived/panel_abawd_event.rds — panel with event_time, G_int, etc.
 

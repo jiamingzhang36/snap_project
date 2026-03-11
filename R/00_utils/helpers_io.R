@@ -1,4 +1,6 @@
 # R/00_utils/helpers_io.R — Read/write and column checks
+# NOTE: Currently not sourced by any active pipeline script.
+#       Available for future use or interactive sessions.
 # Input:  none (defines functions)
 # Output: none
 

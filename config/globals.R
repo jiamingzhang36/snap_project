@@ -2,14 +2,9 @@
 # Policy timeline lives here or in data/raw/*.csv, not hardcoded in scripts
 if (!exists("DIR_RAW")) source("config/paths.R", local = parent.frame())
 
-# ABAWD treatment timing: read from CSV if present; 0 = never-treated
-PATH_ABAWD_TIMING <- file.path(DIR_RAW, "abawd_waiver_timing.csv")
-if (file.exists(PATH_ABAWD_TIMING)) {
-  abawd_timing <- read.csv(PATH_ABAWD_TIMING, stringsAsFactors = FALSE)
-  # Expected cols: county, treat_month (YYYY-MM), source_note
-} else {
-  abawd_timing <- NULL
-}
+# ABAWD treatment timing: canonical source is R/00_utils/helpers_policy.R
+# (hardcoded waiver coverage vectors derived from FNS approval documents).
+# data/raw/abawd_waiver_timing.csv exists but is currently empty (header only).
 
 # 2026 OBBA (federal): ABAWD work requirements expand to age 55–64 (was 18–54); reduced state discretionary exemptions.
 # 05_forecast_2026 = impact under this new policy, not simple time-series forecast.
