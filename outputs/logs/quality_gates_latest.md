@@ -1,6 +1,6 @@
 # Quality Gates Report
-- generated_at: 2026-02-24T20:59:15
-- root: /Users/jiamingzhang/Desktop/snap_project
+- generated_at: 2026-03-11T00:00:14
+- root: /workspace
 
 ## Summary
 - PASS: 4
@@ -9,6 +9,6 @@
 
 ## Gates
 - [PASS] required_files: ok
-- [PASS] no_stray_food_behavior: ok
+- [PASS] no_stray_archived_outputs: ok
 - [PASS] key_csv_nonempty: ok
 - [PASS] junk_files: ok
